@@ -4,6 +4,7 @@ export type Tool = {
   description: string;
   url?: string;
   accent: string;
+  cta?: string;
 };
 
 export type Note = {
@@ -24,16 +25,19 @@ export type Resource = {
 export const tools: Tool[] = [
   {
     name: "面试复盘助手",
-    status: "迭代中",
-    description: "把面试录音、逐字稿和复盘要点整理成结构化总结，帮助后续训练和回看。",
-    url: "#",
+    status: "已接入",
+    description: "上传面试录音或填写音频 URL，直接在个人网站里触发转写、摘要和 Notion 复盘草稿。",
+    url: "/tools/interview-pipeline",
     accent: "#245c47",
+    cta: "进入复盘工作台",
   },
   {
-    name: "个人知识问答",
-    status: "规划中",
-    description: "围绕自己的笔记、资料和项目记录做问答检索，优先服务个人学习场景。",
+    name: "表达模仿教练",
+    status: "已接入",
+    description: "上传目标视频和模仿视频，在个人网站里统一管理练习历史、分析结果和下一轮训练任务。",
+    url: "/tools/verbal-expression-coach",
     accent: "#2b6f8f",
+    cta: "进入表达教练",
   },
   {
     name: "学习计划生成器",
@@ -41,6 +45,7 @@ export const tools: Tool[] = [
     description: "根据目标、时间和当前基础，生成阶段计划、每日任务和复盘问题。",
     url: "#",
     accent: "#c9852d",
+    cta: "查看规划",
   },
 ];
 

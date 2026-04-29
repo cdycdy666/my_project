@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { CSSProperties } from "react";
 import { notes, resourceTypes, resources, tools } from "../data/site";
 
@@ -52,7 +53,7 @@ export default function Home() {
             </div>
             <p>
               第一版先保持轻量：工具用卡片展示，学习内容沉淀为笔记与阶段总结，资源按类型归档。
-              后续可以逐步加详情页、标签、搜索、数据库和 Notion 同步。
+              现在已经把面试复盘和表达教练两条工作流接进了站点前台，后续可以继续加详情页、标签、搜索、数据库和 Notion 同步。
             </p>
           </section>
 
@@ -77,9 +78,15 @@ export default function Home() {
                   </div>
                   <p className="card-copy">{tool.description}</p>
                   {tool.url ? (
-                    <a className="card-link" href={tool.url} target="_blank" rel="noreferrer">
-                      查看工具
-                    </a>
+                    tool.url.startsWith("/") ? (
+                      <Link className="card-link" href={tool.url}>
+                        {tool.cta || "查看工具"}
+                      </Link>
+                    ) : (
+                      <a className="card-link" href={tool.url} target="_blank" rel="noreferrer">
+                        {tool.cta || "查看工具"}
+                      </a>
+                    )
                   ) : (
                     <span className="card-link muted-link" aria-disabled="true">
                       暂未公开

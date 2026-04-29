@@ -11,6 +11,17 @@ npm run dev
 
 默认地址是 `http://localhost:3000`。
 
+如果你要在个人网站里直接调用另外两个工具，还需要在 `personal-ai-website` 下配置环境变量：
+
+```bash
+cp .env.example .env.local
+```
+
+默认本地地址：
+
+- `INTERVIEW_PIPELINE_BASE_URL=http://127.0.0.1:8787`
+- `VERBAL_COACH_BASE_URL=http://127.0.0.1:8000`
+
 ## 内容维护
 
 首版内容集中在 `data/site.ts`：
