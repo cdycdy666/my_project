@@ -6,3 +6,5 @@
 
 - [interview-audio-pipeline](./interview-audio-pipeline)
   面试录音自动化处理与 Notion 复盘工具，支持本地音频、BOS、豆包语音妙记、本地前端工作台。
+- [personal-ai-website](./personal-ai-website)
+  个人 AI 工具、学习笔记、阶段总结与资源收藏网站。
