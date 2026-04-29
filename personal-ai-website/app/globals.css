@@ -142,6 +142,7 @@ a {
 .signal-map {
   display: block;
   width: 100%;
+  height: auto;
   aspect-ratio: 4 / 3;
   object-fit: cover;
 }
@@ -315,6 +316,14 @@ h3 {
   font-size: 0.78rem;
 }
 
+.muted-link {
+  color: var(--muted);
+}
+
+.muted-link::after {
+  content: "";
+}
+
 .note-list {
   display: grid;
   gap: 10px;
@@ -361,20 +370,16 @@ h3 {
   gap: 7px;
 }
 
-.filter-button {
+.filter-chip {
   border: 1px solid rgba(23, 33, 28, 0.12);
   border-radius: 999px;
   padding: 7px 11px;
   color: var(--muted);
   background: rgba(255, 255, 255, 0.5);
-  cursor: pointer;
-  font: inherit;
   font-size: 0.85rem;
-  transition: color 160ms ease, background 160ms ease, border-color 160ms ease;
 }
 
-.filter-button:hover,
-.filter-button.is-active {
+.filter-chip.is-active {
   color: var(--paper-strong);
   border-color: var(--forest);
   background: var(--forest);
