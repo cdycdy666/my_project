@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Expression Studio</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="noise"></div>
+    <main class="shell">
+      <header class="topbar panel panel-ghost reveal" style="--delay: 0.04s">
+        <div class="brand-lockup">
+          <p class="kicker">Verbal Expression Coach</p>
+          <div>
+            <h1>Expression Studio</h1>
+            <p class="subcopy">把“想学谁”和“自己说得怎么样”放进同一张训练桌上。</p>
+          </div>
+        </div>
+        <div class="status-dock">
+          <div class="status-chip">
+            <span class="status-dot" id="live-dot"></span>
+            <span id="studio-status">系统待命</span>
+          </div>
+          <p class="microcopy">
+            先跑通视频上传与结构化反馈，后续直接接入 ASR 与多模态评价。
+          </p>
+        </div>
+      </header>
+
+      <section class="hero reveal" style="--delay: 0.1s">
+        <div class="hero-copy">
+          <p class="section-label">训练主张</p>
+          <h2>不是泛泛练口才，而是逐段模仿，逐轮修正。</h2>
+          <p>
+            这个界面围绕一件事组织：让每次练习都有目标样本、有自己的模仿、有明确差异、有下一轮动作。
+          </p>
+        </div>
+
+        <div class="hero-stats">
+          <article class="stat-card">
+            <span>01</span>
+            <strong>视频双输入</strong>
+            <p>目标视频与模仿视频并行记录，天然适合表达模仿场景。</p>
+          </article>
+          <article class="stat-card">
+            <span>02</span>
+            <strong>结构化反馈</strong>
+            <p>总评、维度、关键问题、下一轮任务都以固定格式呈现。</p>
+          </article>
+          <article class="stat-card">
+            <span>03</span>
+            <strong>可替换分析引擎</strong>
+            <p>现在先用占位链路，后面可以直接替换成真实多模态教练。</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="studio-grid">
+        <form id="practice-form" class="panel composer-panel reveal" style="--delay: 0.18s">
+          <div class="panel-heading">
+            <div>
+              <p class="section-label">练习输入</p>
+              <h3>新建一轮模仿训练</h3>
+            </div>
+            <p class="microcopy">先定义这轮你到底要练什么。</p>
+          </div>
+
+          <label class="field">
+            <span>练习标题</span>
+            <input type="text" name="title" placeholder="例如：短句表达模仿 01" required />
+          </label>
+
+          <label class="field">
+            <span>本轮训练重点</span>
+            <textarea
+              name="focus_note"
+              rows="5"
+              placeholder="例如：减少解释层、结论更短、停顿更稳"
+            ></textarea>
+          </label>
+
+          <div class="input-section">
+            <div class="input-section-head">
+              <strong>目标样本</strong>
+              <p>你希望靠近的表达方式</p>
+            </div>
+            <label class="file-slot">
+              <input
+                id="reference-input"
+                type="file"
+                name="reference_video"
+                accept="video/*"
+                required
+              />
+              <span class="file-slot-title">选择目标视频</span>
+              <span class="file-slot-meta" id="reference-file-name">尚未选择文件</span>
+            </label>
+          </div>
+
+          <div class="input-section">
+            <div class="input-section-head">
+              <strong>我的模仿</strong>
+              <p>你这次的真实输出</p>
+            </div>
+            <label class="file-slot">
+              <input
+                id="attempt-input"
+                type="file"
+                name="attempt_video"
+                accept="video/*"
+                required
+              />
+              <span class="file-slot-title">选择模仿视频</span>
+              <span class="file-slot-meta" id="attempt-file-name">尚未选择文件</span>
+            </label>
+          </div>
+
+          <div class="steps-rail">
+            <div class="step-card">
+              <span>记录</span>
+              <p>保存样本与模仿视频，形成训练档案。</p>
+            </div>
+            <div class="step-card">
+              <span>分析</span>
+              <p>输出总评、维度评分、关键问题和改法。</p>
+            </div>
+            <div class="step-card">
+              <span>复练</span>
+              <p>给出下一轮唯一重点，避免反馈过载。</p>
+            </div>
+          </div>
+
+          <button type="submit" id="submit-button" class="primary-action">开始分析这轮训练</button>
+          <p id="form-status" class="microcopy form-status">等待提交</p>
+        </form>
+
+        <section class="panel stage-panel reveal" style="--delay: 0.24s">
+          <div class="panel-heading stage-heading">
+            <div>
+              <p class="section-label">训练画布</p>
+              <h3>本次分析报告</h3>
+            </div>
+            <div class="stage-summary">
+              <span class="status-chip subtle">
+                <span class="status-dot" id="report-dot"></span>
+                <span id="report-live-status">尚未选择练习</span>
+              </span>
+            </div>
+          </div>
+
+          <div id="empty-state" class="empty-state">
+            <div class="empty-mark">A</div>
+            <h4>先把一轮真实练习放进来</h4>
+            <p>上传目标视频和模仿视频后，这里会切换成一张完整的训练报告：分数、问题、改法、复练指令都会集中展示。</p>
+          </div>
+
+          <div id="report" class="report hidden">
+            <section class="report-hero">
+              <div>
+                <p class="section-label" id="report-status"></p>
+                <h3 id="report-title"></h3>
+                <p id="overall-comment" class="overall-comment"></p>
+              </div>
+              <div class="hero-score">
+                <div class="score-orb" id="total-score">--</div>
+                <div class="score-meta">
+                  <span id="confidence-badge" class="confidence-badge">可信度 --</span>
+                  <span id="provisional-badge" class="provisional-badge hidden">占位分析</span>
+                </div>
+              </div>
+            </section>
+
+            <section class="coach-strip">
+              <div>
+                <p class="section-label">教练提醒</p>
+                <p id="coach-message" class="coach-message"></p>
+              </div>
+              <div class="media-pair">
+                <article class="media-card">
+                  <p>目标视频</p>
+                  <strong id="reference-meta-title">-</strong>
+                  <span id="reference-meta-size">-</span>
+                </article>
+                <article class="media-card">
+                  <p>模仿视频</p>
+                  <strong id="attempt-meta-title">-</strong>
+                  <span id="attempt-meta-size">-</span>
+                </article>
+              </div>
+            </section>
+
+            <div class="report-grid">
+              <section class="report-column">
+                <div class="subpanel">
+                  <div class="subpanel-head">
+                    <p class="section-label">评分</p>
+                    <h4>维度概览</h4>
+                  </div>
+                  <div id="score-grid" class="score-grid"></div>
+                </div>
+
+                <div class="subpanel">
+                  <div class="subpanel-head">
+                    <p class="section-label">优点</p>
+                    <h4>这次保留下来的东西</h4>
+                  </div>
+                  <div id="strengths" class="stack"></div>
+                </div>
+
+                <div class="subpanel">
+                  <div class="subpanel-head">
+                    <p class="section-label">问题</p>
+                    <h4>最该优先修的部分</h4>
+                  </div>
+                  <div id="issues" class="stack"></div>
+                </div>
+              </section>
+
+              <section class="report-column">
+                <div class="subpanel accent-subpanel">
+                  <div class="subpanel-head">
+                    <p class="section-label">下一轮</p>
+                    <h4>单点复练任务</h4>
+                  </div>
+                  <div id="next-task" class="next-task"></div>
+                </div>
+
+                <div class="subpanel">
+                  <div class="subpanel-head">
+                    <p class="section-label">重写</p>
+                    <h4>更接近目标的表达版本</h4>
+                  </div>
+                  <div id="rewrite-list" class="stack"></div>
+                </div>
+
+                <div class="subpanel">
+                  <div class="subpanel-head">
+                    <p class="section-label">流水线</p>
+                    <h4>当前分析链路说明</h4>
+                  </div>
+                  <ul id="pipeline-notes" class="notes"></ul>
+                </div>
+              </section>
+            </div>
+          </div>
+        </section>
+
+        <aside class="panel archive-panel reveal" style="--delay: 0.3s">
+          <div class="panel-heading">
+            <div>
+              <p class="section-label">练习档案</p>
+              <h3>历史记录</h3>
+            </div>
+            <p class="microcopy" id="history-count">0 条练习</p>
+          </div>
+          <div id="history-list" class="history-list"></div>
+        </aside>
+      </section>
+    </main>
+
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>
