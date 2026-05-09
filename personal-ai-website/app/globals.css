@@ -692,10 +692,10 @@ h3 {
 }
 
 .wisdom-chat-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
   align-items: end;
-  justify-content: space-between;
-  gap: 20px;
+  gap: 24px;
 }
 
 .wisdom-chat-copy {
@@ -723,17 +723,37 @@ h3 {
 }
 
 .wisdom-chat-copy h1 {
-  max-width: 10ch;
+  max-width: 7ch;
   font-family: "Iowan Old Style", "Palatino Linotype", "Songti SC", serif;
-  font-size: clamp(2.35rem, 5vw, 4.4rem);
+  font-size: clamp(2.8rem, 5vw, 4.8rem);
   letter-spacing: -0.04em;
-  line-height: 0.96;
+  line-height: 1.02;
+  text-wrap: balance;
 }
 
 .wisdom-chat-copy .tool-intro {
-  max-width: 38rem;
+  max-width: 32rem;
   font-size: 1.02rem;
   line-height: 1.72;
+}
+
+.wisdom-hero-aside {
+  display: grid;
+  gap: 14px;
+  align-self: center;
+  padding: 20px 22px;
+  border: 1px solid rgba(79, 50, 36, 0.1);
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(255, 253, 249, 0.94), rgba(250, 244, 238, 0.88));
+}
+
+.wisdom-hero-aside strong {
+  max-width: 20rem;
+  color: var(--wisdom-ink);
+  font-family: "Songti SC", STSong, "Noto Serif CJK SC", serif;
+  font-size: 1.18rem;
+  line-height: 1.7;
+  font-weight: 700;
 }
 
 .wisdom-proof-strip {
@@ -765,6 +785,13 @@ h3 {
 
 .wisdom-scenario-prompt {
   display: grid;
+  gap: 12px;
+}
+
+.wisdom-scenario-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 12px;
 }
 
@@ -839,6 +866,25 @@ h3 {
 .scenario-pill strong {
   line-height: 1.45;
   font-size: 0.9rem;
+}
+
+.wisdom-refresh-button {
+  border: 1px solid rgba(79, 50, 36, 0.12);
+  border-radius: 999px;
+  padding: 10px 14px;
+  background: rgba(255, 251, 246, 0.9);
+  color: var(--wisdom-russet-deep);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 700;
+  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+.wisdom-refresh-button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(125, 63, 41, 0.22);
+  background: rgba(255, 255, 255, 0.96);
 }
 
 .wisdom-thread {
@@ -1337,6 +1383,10 @@ h3 {
     align-items: flex-start;
   }
 
+  .wisdom-chat-header {
+    grid-template-columns: 1fr;
+  }
+
   .chat-bubble-advisor,
   .chat-bubble-placeholder {
     width: 100%;
@@ -1411,6 +1461,11 @@ h3 {
   .wisdom-chat-copy h1 {
     max-width: 100%;
     font-size: clamp(2.1rem, 11vw, 3rem);
+  }
+
+  .wisdom-scenario-header {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .wisdom-thread::before {
