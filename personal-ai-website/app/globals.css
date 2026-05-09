@@ -697,7 +697,7 @@ h3 {
 
 .wisdom-chat-copy {
   display: grid;
-  gap: 12px;
+  gap: 8px;
 }
 
 .wisdom-header-ribbon {
@@ -720,18 +720,18 @@ h3 {
 }
 
 .wisdom-chat-copy h1 {
-  max-width: 6ch;
+  max-width: 12ch;
   font-family: "Iowan Old Style", "Palatino Linotype", "Songti SC", serif;
-  font-size: clamp(2.3rem, 4.2vw, 3.9rem);
+  font-size: clamp(1.85rem, 3.1vw, 2.8rem);
   letter-spacing: -0.04em;
-  line-height: 1.08;
-  text-wrap: balance;
+  line-height: 1.18;
 }
 
 .wisdom-chat-copy .tool-intro {
-  max-width: 36rem;
-  font-size: 1rem;
-  line-height: 1.68;
+  max-width: 44rem;
+  color: var(--muted);
+  font-size: 0.96rem;
+  line-height: 1.62;
 }
 
 .wisdom-proof-strip {
@@ -767,7 +767,7 @@ h3 {
 
 .wisdom-scenario-prompt {
   display: grid;
-  gap: 12px;
+  gap: 10px;
   padding-top: 2px;
 }
 
@@ -787,18 +787,21 @@ h3 {
 .wisdom-inline-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
 }
 
 .wisdom-inline-meta span {
   display: inline-flex;
   align-items: center;
-  padding: 7px 11px;
-  border: 1px solid var(--wisdom-line);
-  border-radius: 999px;
-  background: rgba(255, 250, 245, 0.84);
+  padding: 0;
   color: var(--wisdom-fog);
   font-size: 0.8rem;
+}
+
+.wisdom-inline-meta span:not(:last-child)::after {
+  content: "·";
+  margin-left: 8px;
+  color: rgba(79, 50, 36, 0.28);
 }
 
 .wisdom-hero-scenarios {
@@ -810,8 +813,8 @@ h3 {
 .scenario-pill {
   display: grid;
   gap: 6px;
-  min-height: 106px;
-  padding: 14px 15px;
+  min-height: 92px;
+  padding: 13px 14px;
   border: 1px solid rgba(79, 50, 36, 0.1);
   border-radius: 18px;
   background: rgba(255, 252, 248, 0.88);
@@ -844,18 +847,18 @@ h3 {
 
 .scenario-pill strong {
   line-height: 1.45;
-  font-size: 0.88rem;
+  font-size: 0.84rem;
 }
 
 .wisdom-refresh-button {
   border: 1px solid rgba(79, 50, 36, 0.12);
   border-radius: 999px;
-  padding: 10px 14px;
+  padding: 8px 12px;
   background: rgba(255, 251, 246, 0.9);
   color: var(--wisdom-russet-deep);
   cursor: pointer;
   font: inherit;
-  font-size: 0.84rem;
+  font-size: 0.8rem;
   font-weight: 700;
   transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
 }
@@ -886,7 +889,7 @@ h3 {
   display: grid;
   gap: 16px;
   max-width: 100%;
-  padding: 20px;
+  padding: 18px;
   border: 1px solid var(--wisdom-line);
   border-radius: 28px;
   box-shadow: 0 16px 34px rgba(52, 31, 22, 0.06);
@@ -941,23 +944,23 @@ h3 {
 
 .chat-composer {
   display: grid;
-  gap: 14px;
+  gap: 12px;
 }
 
 .wisdom-composer-hints {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
 
 .wisdom-composer-hints span {
   display: inline-flex;
   align-items: center;
-  padding: 6px 10px;
+  padding: 5px 9px;
   border-radius: 999px;
   color: var(--wisdom-russet-deep);
   background: rgba(125, 63, 41, 0.08);
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   font-weight: 700;
 }
 
@@ -1571,7 +1574,7 @@ h3 {
 
   .wisdom-chat-copy h1 {
     max-width: 100%;
-    font-size: clamp(2rem, 10vw, 2.9rem);
+    font-size: clamp(1.8rem, 9vw, 2.35rem);
   }
 
   .wisdom-scenario-header {

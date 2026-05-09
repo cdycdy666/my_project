@@ -286,13 +286,13 @@ export function WisdomAdvisorStudio() {
               <span className="eyebrow">Counsel Console</span>
               <span className="wisdom-ribbon-copy">{systemStatus}</span>
             </div>
+            <h1>个人沟通顾问</h1>
+            <p className="tool-intro">把真实处境讲出来。它会先替你判断局面，再把真正能拿去说、拿去做的动作整理出来。</p>
             <div className="wisdom-inline-meta">
-              <span>你不一定情绪失控，只是想先想清楚，再把话说稳</span>
-              <span>{library?.totalSources ?? "--"} 条资料</span>
+              <span>适合那些你不想把话说重、但也不想把自己憋住的时候</span>
+              <span>{library?.totalSources ?? "--"} 条资料沉淀</span>
               <span>最近更新 {latestSourceDate}</span>
             </div>
-            <h1>个人沟通顾问台</h1>
-            <p className="tool-intro">把真实处境讲出来，它会先替你过一遍局面，再把能直接拿去说、拿去做的动作给出来。</p>
           </div>
         </header>
 
@@ -301,16 +301,15 @@ export function WisdomAdvisorStudio() {
             <div className="chat-bubble-head">
               <div className="chat-avatar">你</div>
               <div>
-                <p className="micro-label">你想处理的处境</p>
-                <strong>把问题先说清楚</strong>
+                <p className="micro-label">现在就开始咨询</p>
+                <strong>把你卡住的那句话先说出来</strong>
               </div>
             </div>
 
             <form className="stack-form chat-composer" onSubmit={handleAsk}>
               <div className="wisdom-composer-hints" aria-label="提问提示">
-                <span>说清楚你最卡的点</span>
-                <span>补一句你最担心失去什么</span>
-                <span>不需要把前因后果全讲完</span>
+                <span>先说你最卡的点</span>
+                <span>补一句你最怕失去什么</span>
               </div>
 
               <label className="field">
@@ -318,7 +317,7 @@ export function WisdomAdvisorStudio() {
                 <textarea
                   name="question"
                   onChange={(event) => setQuestion(event.target.value)}
-                  placeholder="例如：同事总是临时改需求，我心里很烦，但又不想把关系搞僵，我该怎么说？"
+                  placeholder="例如：我不想把关系弄僵，但这件事我真的不想再答应了，该怎么说？"
                   rows={4}
                   required
                   value={question}
@@ -330,7 +329,7 @@ export function WisdomAdvisorStudio() {
                 <textarea
                   name="context"
                   onChange={(event) => setContext(event.target.value)}
-                  placeholder="例如：对方是合作很久的同事，这次项目下周就要交付。"
+                  placeholder="例如：对方是合作很久的同事，这周就要交付，我不想因为一次沟通把关系搞坏。"
                   rows={3}
                   value={context}
                 />
@@ -356,7 +355,7 @@ export function WisdomAdvisorStudio() {
 
               <div className="wisdom-scenario-prompt">
                 <div className="wisdom-scenario-header">
-                  <span>也可以先点一个场景，再改成自己的处境</span>
+                  <span>不确定怎么开口？先点一个最接近的场景</span>
                   <button className="wisdom-refresh-button" onClick={refreshScenarioBatch} type="button">
                     换一批
                   </button>
@@ -387,7 +386,7 @@ export function WisdomAdvisorStudio() {
                 >
                   {asking ? "顾问正在整理判断..." : "生成顾问建议"}
                 </button>
-                <p>不用讲得很全，把你最卡、最怕、最难开口的那一点说出来就够了。</p>
+                <p>不用把前因后果全讲完，只要先把你最难开口的那一点说出来就够了。</p>
               </div>
               {askError ? <p className="error-text">{askError}</p> : null}
             </form>
