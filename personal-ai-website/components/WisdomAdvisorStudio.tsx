@@ -288,24 +288,10 @@ export function WisdomAdvisorStudio() {
             </div>
             <h1>个人沟通顾问台</h1>
             <p className="tool-intro">把真实处境讲出来，它会先替你过一遍局面，再把能直接拿去说、拿去做的动作给出来。</p>
-            <section className="wisdom-proof-strip" aria-label="顾问能力概览">
-              <article>
-                <strong>{library?.totalSources ?? "--"}+</strong>
-                <span>真实资料沉淀</span>
-              </article>
-              <article>
-                <strong>先检索</strong>
-                <span>不是凭空给建议</span>
-              </article>
-              <article>
-                <strong>再生成</strong>
-                <span>回答更像真人顾问</span>
-              </article>
-            </section>
           </div>
           <aside className="wisdom-hero-aside">
             <p className="micro-label">适合这样的时刻</p>
-            <strong>事情不一定多严重，但你想把话说稳、把关系处理好。</strong>
+            <strong>你不一定情绪失控，只是想先想清楚，再把话说稳。</strong>
             <div className="wisdom-inline-meta">
               <span>{library?.totalSources ?? "--"} 条资料</span>
               <span>最近更新 {latestSourceDate}</span>
@@ -518,6 +504,21 @@ export function WisdomAdvisorStudio() {
                   </article>
                 </div>
               </details>
+
+              <section className="wisdom-proof-strip wisdom-proof-strip-late" aria-label="顾问能力概览">
+                <article>
+                  <strong>{library?.totalSources ?? "--"}+</strong>
+                  <span>真实资料沉淀</span>
+                </article>
+                <article>
+                  <strong>先检索</strong>
+                  <span>不是凭空给建议</span>
+                </article>
+                <article>
+                  <strong>再生成</strong>
+                  <span>回答更像真人顾问</span>
+                </article>
+              </section>
             </article>
           ) : (
             <article className="chat-bubble chat-bubble-placeholder">
@@ -529,6 +530,20 @@ export function WisdomAdvisorStudio() {
                 </div>
               </div>
               <p className="chat-placeholder-copy">这里会先帮你判断局面，再给你几个真能拿去用的动作和提醒，不会只给空泛的大道理。</p>
+              <section className="wisdom-proof-strip wisdom-proof-strip-late" aria-label="顾问能力概览">
+                <article>
+                  <strong>{library?.totalSources ?? "--"}+</strong>
+                  <span>真实资料沉淀</span>
+                </article>
+                <article>
+                  <strong>先检索</strong>
+                  <span>不是凭空给建议</span>
+                </article>
+                <article>
+                  <strong>再生成</strong>
+                  <span>回答更像真人顾问</span>
+                </article>
+              </section>
             </article>
           )}
         </section>

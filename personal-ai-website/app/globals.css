@@ -739,20 +739,22 @@ h3 {
 
 .wisdom-hero-aside {
   display: grid;
-  gap: 14px;
+  gap: 12px;
   align-self: center;
-  padding: 20px 22px;
+  max-width: 340px;
+  justify-self: end;
+  padding: 16px 18px;
   border: 1px solid rgba(79, 50, 36, 0.1);
-  border-radius: 24px;
-  background: linear-gradient(180deg, rgba(255, 253, 249, 0.94), rgba(250, 244, 238, 0.88));
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(255, 253, 249, 0.9), rgba(250, 244, 238, 0.82));
 }
 
 .wisdom-hero-aside strong {
-  max-width: 20rem;
+  max-width: 15rem;
   color: var(--wisdom-ink);
   font-family: "Songti SC", STSong, "Noto Serif CJK SC", serif;
-  font-size: 1.18rem;
-  line-height: 1.7;
+  font-size: 1rem;
+  line-height: 1.75;
   font-weight: 700;
 }
 
@@ -760,6 +762,10 @@ h3 {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.wisdom-proof-strip-late {
+  padding-top: 4px;
 }
 
 .wisdom-proof-strip article {
@@ -1516,6 +1522,11 @@ h3 {
 
   .wisdom-chat-header {
     grid-template-columns: 1fr;
+  }
+
+  .wisdom-hero-aside {
+    max-width: none;
+    justify-self: start;
   }
 
   .chat-bubble-advisor,
