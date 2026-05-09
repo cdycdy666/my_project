@@ -1,0 +1,402 @@
+"use client";
+
+import { FormEvent, MouseEvent, useEffect, useMemo, useRef, useState } from "react";
+
+const ACCESS_CODE_STORAGE_KEY = "wisdom-advisor-access-code";
+
+type LibrarySource = {
+  id: string;
+  title: string;
+  sourceType: "录音转写" | "文档摘录" | "手动笔记";
+  summary: string;
+  tags: string[];
+  createdAt: string;
+  passageCount: number;
+};
+
+type AdviceResponse = {
+  situation: string;
+  summary: string;
+  principles: string[];
+  actions: string[];
+  pitfalls: string[];
+  evidence: Array<{
+    sourceId: string;
+    sourceTitle: string;
+    sourceType: string;
+    excerpt: string;
+    score: number;
+    tags: string[];
+  }>;
+  relatedSources: Array<{
+    id: string;
+    title: string;
+    sourceType: string;
+    summary: string;
+    tags: string[];
+  }>;
+};
+
+type LibraryPayload = {
+  totalSources: number;
+  totalPassages: number;
+  tags: string[];
+  sources: LibrarySource[];
+};
+
+const QUICK_SCENARIOS = [
+  {
+    title: "边界表达",
+    question: "朋友总是动不动就教育我，我心里很烦，但又不想把关系弄僵，我该怎么回应？",
+    context: "对方是认识多年的朋友，平时也会帮我，但一聊天就容易高高在上。",
+  },
+  {
+    title: "协作推进",
+    question: "同事总是临时改需求，项目推进很卡，我该怎么和他重新拉齐预期？",
+    context: "项目已经进入交付周，对方不是恶意，但习惯临时加内容。",
+  },
+  {
+    title: "家庭关系",
+    question: "爸妈一直催婚，我不想硬碰硬，但真的压力很大，怎么办？",
+    context: "他们会找亲戚朋友轮流施压，我不想每次回家都陷入冲突。",
+  },
+  {
+    title: "机会争取",
+    question: "跳槽时想争取更高薪资，但又怕一谈就把 offer 谈没了，怎么办？",
+    context: "我有一定成绩，但不确定自己有没有足够筹码开更高价。",
+  },
+];
+
+export function WisdomAdvisorStudio() {
+  const answerRef = useRef<HTMLDivElement | null>(null);
+  const [library, setLibrary] = useState<LibraryPayload | null>(null);
+  const [libraryError, setLibraryError] = useState("");
+  const [asking, setAsking] = useState(false);
+  const [askError, setAskError] = useState("");
+  const [answer, setAnswer] = useState<AdviceResponse | null>(null);
+  const [accessCode, setAccessCode] = useState("");
+  const [question, setQuestion] = useState(QUICK_SCENARIOS[0].question);
+  const [context, setContext] = useState(QUICK_SCENARIOS[0].context);
+
+  async function loadLibrary() {
+    const response = await fetch("/api/wisdom-advisor/library", {
+      cache: "no-store",
+    });
+    const payload = (await response.json()) as {
+      ok: boolean;
+      error?: string;
+      library?: LibraryPayload;
+    };
+    if (!response.ok || !payload.ok || !payload.library) {
+      throw new Error(payload.error || "知识库暂时不可用。");
+    }
+    setLibraryError("");
+    setLibrary(payload.library);
+  }
+
+  useEffect(() => {
+    void loadLibrary().catch((error: Error) => {
+      setLibraryError(error.message);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const savedCode = window.localStorage.getItem(ACCESS_CODE_STORAGE_KEY) || "";
+    setAccessCode(savedCode);
+  }, []);
+
+  const latestSourceDate = useMemo(() => {
+    if (!library?.sources.length) {
+      return "--";
+    }
+    return new Date(library.sources[0].createdAt).toLocaleDateString("zh-CN");
+  }, [library]);
+
+  const systemStatus = libraryError ? "知识库待修复" : "Qwen + 本地知识库已联动";
+  const openingQuestion = answer ? answer.summary.split("。")[0]?.trim() : "";
+
+  async function handleAsk(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await submitAsk();
+  }
+
+  async function submitAsk() {
+    setAsking(true);
+    setAskError("");
+
+    try {
+      const response = await fetch("/api/wisdom-advisor/ask", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          question,
+          context,
+          accessCode,
+        }),
+      });
+      const payload = (await response.json()) as {
+        ok: boolean;
+        error?: string;
+        advice?: AdviceResponse;
+      };
+      if (!response.ok || !payload.ok || !payload.advice) {
+        throw new Error(payload.error || "顾问暂时没有给出建议。");
+      }
+      if (typeof window !== "undefined") {
+        const trimmedCode = accessCode.trim();
+        if (trimmedCode) {
+          window.localStorage.setItem(ACCESS_CODE_STORAGE_KEY, trimmedCode);
+        } else {
+          window.localStorage.removeItem(ACCESS_CODE_STORAGE_KEY);
+        }
+      }
+      setAskError("");
+      setAnswer(payload.advice);
+      requestAnimationFrame(() => {
+        answerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    } catch (error) {
+      setAskError(error instanceof Error ? error.message : "提问失败。");
+    } finally {
+      setAsking(false);
+    }
+  }
+
+  function useScenario(questionText: string, contextText: string) {
+    setQuestion(questionText);
+    setContext(contextText);
+  }
+
+  function handleScenarioClick(event: MouseEvent<HTMLButtonElement>, questionText: string, contextText: string) {
+    event.preventDefault();
+    useScenario(questionText, contextText);
+  }
+
+  return (
+    <div className="tool-shell wisdom-shell">
+      <section className="wisdom-chat-frame">
+        <header className="wisdom-chat-header">
+          <div className="wisdom-chat-copy">
+            <p className="eyebrow">Counsel Console</p>
+            <h1>个人沟通顾问台</h1>
+            <p className="tool-intro">把真实处境讲出来，它会像一个分寸感很稳的顾问那样，先帮你判断局面，再告诉你下一步怎么说、怎么做。</p>
+          </div>
+          <div className="wisdom-inline-meta">
+            <span>{systemStatus}</span>
+            <span>{library?.totalSources ?? "--"} 条资料</span>
+            <span>最近更新 {latestSourceDate}</span>
+          </div>
+        </header>
+
+        <section className="wisdom-proof-strip" aria-label="顾问能力概览">
+          <article>
+            <strong>{library?.totalSources ?? "--"}+</strong>
+            <span>真实资料沉淀</span>
+          </article>
+          <article>
+            <strong>先检索</strong>
+            <span>不是凭空给建议</span>
+          </article>
+          <article>
+            <strong>再生成</strong>
+            <span>回答更像真人顾问</span>
+          </article>
+        </section>
+
+        <div className="wisdom-scenario-prompt">
+          <span>常见场景</span>
+          <div className="wisdom-hero-scenarios">
+            {QUICK_SCENARIOS.map((scenario) => (
+              <button
+                className="scenario-pill"
+                key={scenario.title}
+                onClick={(event) => handleScenarioClick(event, scenario.question, scenario.context)}
+                type="button"
+              >
+                <span>{scenario.title}</span>
+                <strong>{scenario.question}</strong>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <section className="wisdom-thread" ref={answerRef}>
+          <article className="chat-bubble chat-bubble-user">
+            <div className="chat-bubble-head">
+              <div className="chat-avatar">你</div>
+              <div>
+                <p className="micro-label">你想处理的处境</p>
+                <strong>把问题先说清楚</strong>
+              </div>
+            </div>
+
+            <form className="stack-form chat-composer" onSubmit={handleAsk}>
+              <div className="wisdom-access-note">
+                <label className="field wisdom-access-field">
+                  <span>访问码</span>
+                  <input
+                    autoComplete="off"
+                    name="accessCode"
+                    onChange={(event) => setAccessCode(event.target.value)}
+                    placeholder="如果这个页面已开启访问保护，就在这里输入"
+                    type="password"
+                    value={accessCode}
+                  />
+                </label>
+                <p>如果你公开分享这个页面，建议给试用者单独发访问码，而不是完全裸放在公网。</p>
+              </div>
+
+              <label className="field">
+                <span>你的问题</span>
+                <textarea
+                  name="question"
+                  onChange={(event) => setQuestion(event.target.value)}
+                  placeholder="例如：同事总是临时改需求，我心里很烦，但又不想把关系搞僵，我该怎么说？"
+                  rows={4}
+                  required
+                  value={question}
+                />
+              </label>
+              <label className="field">
+                <span>补充背景</span>
+                <textarea
+                  name="context"
+                  onChange={(event) => setContext(event.target.value)}
+                  placeholder="例如：对方是合作很久的同事，这次项目下周就要交付。"
+                  rows={3}
+                  value={context}
+                />
+              </label>
+
+              <div className="chat-composer-footer">
+                <button
+                  className="primary-button wisdom-submit"
+                  disabled={asking}
+                  onClick={() => {
+                    void submitAsk();
+                  }}
+                  type="button"
+                >
+                  {asking ? "顾问正在整理判断..." : "生成顾问建议"}
+                </button>
+                <p>不用讲得很全，把你最卡、最怕、最难开口的那一点说出来就够了。</p>
+              </div>
+              {askError ? <p className="error-text">{askError}</p> : null}
+            </form>
+          </article>
+
+          {answer ? (
+            <article className="chat-bubble chat-bubble-advisor">
+              <div className="chat-bubble-head">
+                <div className="chat-avatar chat-avatar-advisor">顾问</div>
+                <div>
+                  <p className="micro-label">顾问回答</p>
+                  <strong>{answer.situation}</strong>
+                </div>
+              </div>
+
+              <article className="insight-card wisdom-summary-card">
+                {openingQuestion ? <p className="wisdom-summary-kicker">顾问先说一句：{openingQuestion}</p> : null}
+                <p>{answer.summary}</p>
+              </article>
+
+              <div className="wisdom-brief-grid">
+                <article className="insight-card wisdom-list-card">
+                  <div className="wisdom-list-head">
+                    <p className="micro-label">先定判断</p>
+                    <span>先怎么想</span>
+                  </div>
+                  <ul className="plain-list wisdom-bullet-list">
+                    {answer.principles.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </article>
+
+                <article className="insight-card wisdom-list-card">
+                  <div className="wisdom-list-head">
+                    <p className="micro-label">下一步动作</p>
+                    <span>接下来怎么做</span>
+                  </div>
+                  <ul className="plain-list wisdom-bullet-list">
+                    {answer.actions.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </article>
+              </div>
+
+              <article className="insight-card caution-card wisdom-list-card">
+                <div className="wisdom-list-head">
+                  <p className="micro-label">尽量避免</p>
+                  <span>最容易搞坏的处理方式</span>
+                </div>
+                <ul className="plain-list wisdom-bullet-list">
+                  {answer.pitfalls.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </article>
+
+              <details className="wisdom-evidence-wrap">
+                <summary>这次回答参考了哪些资料</summary>
+                <div className="wisdom-reference-grid">
+                  <article className="markdown-card evidence-card">
+                    <div className="wisdom-list-head">
+                      <p className="micro-label">命中片段</p>
+                      <span>{answer.evidence.length} 条证据</span>
+                    </div>
+                    <div className="evidence-stack">
+                      {answer.evidence.map((item) => (
+                        <div className="evidence-item" key={`${item.sourceId}-${item.excerpt}`}>
+                          <div className="evidence-head">
+                            <strong>{item.sourceTitle}</strong>
+                            <span>
+                              {item.sourceType} · 匹配度 {Math.round(item.score * 100)}%
+                            </span>
+                          </div>
+                          <p>{item.excerpt}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </article>
+
+                  <article className="insight-card related-card">
+                    <div className="wisdom-list-head">
+                      <p className="micro-label">关联来源</p>
+                      <span>{answer.relatedSources.length} 份资料</span>
+                    </div>
+                    <div className="related-source-list">
+                      {answer.relatedSources.map((item) => (
+                        <div className="related-source-item" key={item.id}>
+                          <strong>{item.title}</strong>
+                          <p>{item.summary}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </article>
+                </div>
+              </details>
+            </article>
+          ) : (
+            <article className="chat-bubble chat-bubble-placeholder">
+              <div className="chat-bubble-head">
+                <div className="chat-avatar chat-avatar-advisor">顾问</div>
+                <div>
+                  <p className="micro-label">顾问回答</p>
+                  <strong>等你把问题说出来</strong>
+                </div>
+              </div>
+              <p className="chat-placeholder-copy">这里会先帮你判断局面，再给你几个真能拿去用的动作和提醒，不会只给空泛的大道理。</p>
+            </article>
+          )}
+        </section>
+      </section>
+    </div>
+  );
+}

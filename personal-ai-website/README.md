@@ -39,3 +39,22 @@ cp .env.example .env.local
 - GitHub 仓库：`cdycdy666/my_project`
 - Vercel Root Directory：`personal-ai-website`
 - Framework Preset：`Next.js`
+
+如果走腾讯云轻量应用服务器，当前项目也已经准备好容器化部署：
+
+1. 在服务器上安装 `git`、`docker` 和 `docker compose`
+2. 拉取项目后进入 `personal-ai-website`
+3. 复制环境变量模板
+
+```bash
+cp .env.runtime.example .env.runtime
+```
+
+4. 按实际情况填写 `.env.runtime`
+5. 构建并启动
+
+```bash
+docker compose up -d --build
+```
+
+默认会把容器内的 `3000` 端口映射到宿主机 `80` 端口。

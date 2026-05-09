@@ -1,0 +1,40 @@
+{
+  "sourceDir": "/Users/chendingyu/my_project/7.得到锦囊",
+  "totalPdfFiles": 963,
+  "uniqueCanonicalTitles": 321,
+  "imported": 240,
+  "skippedDuplicateFile": 642,
+  "skippedExistingKnowledge": 78,
+  "skippedDuplicateContent": 0,
+  "failed": 3,
+  "abortedDueToQuota": false,
+  "failureReportPath": "/Users/chendingyu/my_project/personal-ai-website/data/wisdom-advisor/import-reports/jinnang-pdf-failures.json",
+  "remainingCanonicalTitles": [
+    "00242.新建 DOC 文档 (2)",
+    "00243.新建 DOC 文档",
+    "00293.95后新员工入职，如何设置有趣的入职培训，让员工快速融入团队？"
+  ],
+  "failures": [
+    {
+      "canonicalTitle": "00242.新建 DOC 文档 (2)",
+      "fileName": "00242.新建 DOC 文档 (2)_20200619191322.pdf",
+      "type": "empty_content",
+      "message": "Parsed content is empty after cleanup.",
+      "recordedAt": "2026-05-08T12:46:29.606Z"
+    },
+    {
+      "canonicalTitle": "00243.新建 DOC 文档",
+      "fileName": "00243.新建 DOC 文档_20200619191322.pdf",
+      "type": "empty_content",
+      "message": "Parsed content is empty after cleanup.",
+      "recordedAt": "2026-05-08T12:46:46.851Z"
+    },
+    {
+      "canonicalTitle": "00293.95后新员工入职，如何设置有趣的入职培训，让员工快速融入团队？",
+      "fileName": "00293.95后新员工入职，如何设置有趣的入职培训，让员工快速融入团队？_20200702170923.pdf",
+      "type": "empty_content",
+      "message": "Parsed content is empty after cleanup.",
+      "recordedAt": "2026-05-08T13:01:12.372Z"
+    }
+  ]
+}

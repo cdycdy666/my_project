@@ -24,6 +24,14 @@ export type Resource = {
 
 export const tools: Tool[] = [
   {
+    name: "沟通锦囊顾问",
+    status: "新原型",
+    description: "沉淀录音转写、文档摘录和手动心得。以后直接描述情境，它会按你的知识库给出建议和引用依据。",
+    url: "/tools/wisdom-advisor",
+    accent: "#8b4a2f",
+    cta: "进入顾问台",
+  },
+  {
     name: "面试复盘助手",
     status: "已接入",
     description: "上传面试录音或填写音频 URL，直接在个人网站里触发转写、摘要和 Notion 复盘草稿。",
