@@ -44,6 +44,16 @@ type LibraryPayload = {
   sources: LibrarySource[];
 };
 
+type LibrarySourceDetail = {
+  id: string;
+  title: string;
+  sourceType: "录音转写" | "文档摘录" | "手动笔记";
+  summary: string;
+  tags: string[];
+  createdAt: string;
+  passages: string[];
+};
+
 const QUICK_SCENARIOS = [
   {
     title: "边界表达",
@@ -123,6 +133,11 @@ export function WisdomAdvisorStudio() {
   const [question, setQuestion] = useState(QUICK_SCENARIOS[0].question);
   const [context, setContext] = useState(QUICK_SCENARIOS[0].context);
   const [scenarioBatch, setScenarioBatch] = useState(() => QUICK_SCENARIOS.slice(0, SCENARIO_BATCH_SIZE));
+  const [selectedSource, setSelectedSource] = useState<LibrarySourceDetail | null>(null);
+  const [selectedExcerpt, setSelectedExcerpt] = useState("");
+  const [selectedMatchMeta, setSelectedMatchMeta] = useState("");
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState("");
 
   async function loadLibrary() {
     const response = await fetch("/api/wisdom-advisor/library", {
@@ -225,6 +240,41 @@ export function WisdomAdvisorStudio() {
 
   function refreshScenarioBatch() {
     setScenarioBatch((currentBatch) => pickScenarioBatch(currentBatch.map((item) => item.title)));
+  }
+
+  async function openSourceDetail(sourceId: string, excerpt = "", matchMeta = "") {
+    setDetailLoading(true);
+    setDetailError("");
+    setSelectedExcerpt(excerpt);
+    setSelectedMatchMeta(matchMeta);
+
+    try {
+      const response = await fetch(`/api/wisdom-advisor/library?id=${encodeURIComponent(sourceId)}`, {
+        cache: "no-store",
+      });
+      const payload = (await response.json()) as {
+        ok: boolean;
+        error?: string;
+        source?: LibrarySourceDetail;
+      };
+      if (!response.ok || !payload.ok || !payload.source) {
+        throw new Error(payload.error || "资料详情暂时不可用。");
+      }
+      setSelectedSource(payload.source);
+    } catch (error) {
+      setSelectedSource(null);
+      setDetailError(error instanceof Error ? error.message : "资料详情加载失败。");
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
+  function closeSourceDetail() {
+    setSelectedSource(null);
+    setSelectedExcerpt("");
+    setSelectedMatchMeta("");
+    setDetailError("");
+    setDetailLoading(false);
   }
 
   return (
@@ -378,11 +428,11 @@ export function WisdomAdvisorStudio() {
               <div className="wisdom-brief-grid">
                 <article className="insight-card wisdom-list-card">
                   <div className="wisdom-list-head">
-                    <p className="micro-label">下一步动作</p>
-                    <span>先从哪里下手</span>
+                    <p className="micro-label">先定判断</p>
+                    <span>这件事该怎么看</span>
                   </div>
                   <ul className="plain-list wisdom-bullet-list">
-                    {answer.actions.map((item) => (
+                    {answer.principles.map((item) => (
                       <li key={item}>{item}</li>
                     ))}
                   </ul>
@@ -390,11 +440,11 @@ export function WisdomAdvisorStudio() {
 
                 <article className="insight-card wisdom-list-card">
                   <div className="wisdom-list-head">
-                    <p className="micro-label">先定判断</p>
-                    <span>这件事该怎么看</span>
+                    <p className="micro-label">下一步动作</p>
+                    <span>先从哪里下手</span>
                   </div>
                   <ul className="plain-list wisdom-bullet-list">
-                    {answer.principles.map((item) => (
+                    {answer.actions.map((item) => (
                       <li key={item}>{item}</li>
                     ))}
                   </ul>
@@ -423,7 +473,18 @@ export function WisdomAdvisorStudio() {
                     </div>
                     <div className="evidence-stack">
                       {answer.evidence.map((item) => (
-                        <div className="evidence-item" key={`${item.sourceId}-${item.excerpt}`}>
+                        <button
+                          className="evidence-item evidence-item-button"
+                          key={`${item.sourceId}-${item.excerpt}`}
+                          onClick={() =>
+                            void openSourceDetail(
+                              item.sourceId,
+                              item.excerpt,
+                              `${item.sourceType} · 匹配度 ${Math.round(item.score * 100)}%`
+                            )
+                          }
+                          type="button"
+                        >
                           <div className="evidence-head">
                             <strong>{item.sourceTitle}</strong>
                             <span>
@@ -431,7 +492,7 @@ export function WisdomAdvisorStudio() {
                             </span>
                           </div>
                           <p>{item.excerpt}</p>
-                        </div>
+                        </button>
                       ))}
                     </div>
                   </article>
@@ -443,10 +504,15 @@ export function WisdomAdvisorStudio() {
                     </div>
                     <div className="related-source-list">
                       {answer.relatedSources.map((item) => (
-                        <div className="related-source-item" key={item.id}>
+                        <button
+                          className="related-source-item related-source-button"
+                          key={item.id}
+                          onClick={() => void openSourceDetail(item.id)}
+                          type="button"
+                        >
                           <strong>{item.title}</strong>
                           <p>{item.summary}</p>
-                        </div>
+                        </button>
                       ))}
                     </div>
                   </article>
@@ -467,6 +533,80 @@ export function WisdomAdvisorStudio() {
           )}
         </section>
       </section>
+
+      {(selectedSource || detailLoading || detailError) && (
+        <div className="wisdom-detail-overlay" onClick={closeSourceDetail} role="presentation">
+          <section
+            aria-labelledby="wisdom-detail-title"
+            className="wisdom-detail-sheet"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="wisdom-detail-head">
+              <div>
+                <p className="micro-label">资料详情</p>
+                <h2 id="wisdom-detail-title">{selectedSource?.title || "正在加载资料..."}</h2>
+              </div>
+              <button className="wisdom-detail-close" onClick={closeSourceDetail} type="button">
+                关闭
+              </button>
+            </div>
+
+            {detailError ? <p className="error-text">{detailError}</p> : null}
+            {detailLoading ? <p className="chat-placeholder-copy">正在读取这份资料的详细内容...</p> : null}
+
+            {selectedSource ? (
+              <div className="wisdom-detail-content">
+                <div className="wisdom-detail-meta">
+                  <span>{selectedSource.sourceType}</span>
+                  <span>{new Date(selectedSource.createdAt).toLocaleDateString("zh-CN")}</span>
+                  <span>{selectedSource.passages.length} 段内容</span>
+                </div>
+
+                {selectedSource.tags.length ? (
+                  <div className="note-tags wisdom-detail-tags">
+                    {selectedSource.tags.map((tag) => (
+                      <span key={tag}>{tag}</span>
+                    ))}
+                  </div>
+                ) : null}
+
+                {selectedExcerpt ? (
+                  <article className="insight-card wisdom-detail-highlight">
+                    <div className="wisdom-list-head">
+                      <p className="micro-label">本次命中片段</p>
+                      <span>{selectedMatchMeta || "参考片段"}</span>
+                    </div>
+                    <p>{selectedExcerpt}</p>
+                  </article>
+                ) : null}
+
+                <article className="insight-card wisdom-detail-summary">
+                  <div className="wisdom-list-head">
+                    <p className="micro-label">摘要</p>
+                    <span>这份资料在讲什么</span>
+                  </div>
+                  <p>{selectedSource.summary}</p>
+                </article>
+
+                <article className="insight-card wisdom-detail-passages">
+                  <div className="wisdom-list-head">
+                    <p className="micro-label">原始段落</p>
+                    <span>按知识库切分后的内容</span>
+                  </div>
+                  <div className="wisdom-detail-passage-list">
+                    {selectedSource.passages.map((passage, index) => (
+                      <div className="wisdom-detail-passage" key={`${selectedSource.id}-${index}`}>
+                        <strong>片段 {index + 1}</strong>
+                        <p>{passage}</p>
+                      </div>
+                    ))}
+                  </div>
+                </article>
+              </div>
+            ) : null}
+          </section>
+        </div>
+      )}
     </div>
   );
 }

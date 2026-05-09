@@ -1,10 +1,21 @@
 import { NextResponse } from "next/server";
-import { appendKnowledgeSource, listKnowledgeSummary } from "../../../../lib/wisdom-advisor";
+import { appendKnowledgeSource, getKnowledgeSourceDetail, listKnowledgeSummary } from "../../../../lib/wisdom-advisor";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const sourceId = searchParams.get("id");
+
+    if (sourceId) {
+      const source = await getKnowledgeSourceDetail(sourceId);
+      return NextResponse.json({
+        ok: true,
+        source,
+      });
+    }
+
     const library = await listKnowledgeSummary();
     return NextResponse.json({
       ok: true,

@@ -154,6 +154,29 @@ export async function listKnowledgeSummary() {
   };
 }
 
+export async function getKnowledgeSourceDetail(sourceId: string) {
+  const normalized = sourceId.trim();
+  if (!normalized) {
+    throw new Error("资料 ID 不能为空。");
+  }
+
+  const knowledgeBase = await loadKnowledgeBase();
+  const source = knowledgeBase.sources.find((item) => item.id === normalized);
+  if (!source) {
+    throw new Error("没有找到对应资料。");
+  }
+
+  return {
+    id: source.id,
+    title: source.title,
+    sourceType: source.sourceType,
+    summary: source.summary,
+    tags: source.tags,
+    createdAt: source.createdAt,
+    passages: source.passages,
+  };
+}
+
 export async function appendKnowledgeSource(input: {
   title: string;
   sourceType: KnowledgeSourceType;

@@ -1155,6 +1155,24 @@ h3 {
   background: rgba(255, 255, 255, 0.78);
 }
 
+.evidence-item-button,
+.related-source-button {
+  width: 100%;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
+}
+
+.evidence-item-button:hover,
+.related-source-button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(125, 63, 41, 0.22);
+  box-shadow: 0 14px 26px rgba(69, 40, 24, 0.08);
+  background: rgba(255, 255, 255, 0.96);
+}
+
 .evidence-item p,
 .library-item p {
   margin: 10px 0 0;
@@ -1221,6 +1239,119 @@ h3 {
 
 .wisdom-evidence-wrap[open] summary {
   margin-bottom: 14px;
+}
+
+.wisdom-detail-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(36, 23, 18, 0.22);
+  backdrop-filter: blur(10px);
+}
+
+.wisdom-detail-sheet {
+  display: grid;
+  gap: 18px;
+  width: min(920px, 100%);
+  max-height: min(86vh, 920px);
+  overflow: auto;
+  padding: 24px;
+  border: 1px solid rgba(79, 50, 36, 0.12);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at top right, rgba(219, 149, 96, 0.12), transparent 16rem),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 241, 234, 0.96));
+  box-shadow: 0 28px 60px rgba(52, 31, 22, 0.18);
+}
+
+.wisdom-detail-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.wisdom-detail-head h2 {
+  font-size: clamp(1.45rem, 3vw, 2rem);
+}
+
+.wisdom-detail-close {
+  border: 1px solid rgba(79, 50, 36, 0.12);
+  border-radius: 999px;
+  padding: 9px 14px;
+  background: rgba(255, 251, 246, 0.9);
+  color: var(--wisdom-russet-deep);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.wisdom-detail-content {
+  display: grid;
+  gap: 16px;
+}
+
+.wisdom-detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.wisdom-detail-meta span {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 11px;
+  border: 1px solid var(--wisdom-line);
+  border-radius: 999px;
+  background: rgba(255, 250, 245, 0.86);
+  color: var(--wisdom-fog);
+  font-size: 0.8rem;
+}
+
+.wisdom-detail-tags {
+  margin-top: -4px;
+}
+
+.wisdom-detail-highlight,
+.wisdom-detail-summary,
+.wisdom-detail-passages {
+  border-radius: 20px;
+}
+
+.wisdom-detail-highlight p,
+.wisdom-detail-summary p {
+  margin: 0;
+  color: var(--wisdom-ink);
+  line-height: 1.75;
+}
+
+.wisdom-detail-passage-list {
+  display: grid;
+  gap: 12px;
+}
+
+.wisdom-detail-passage {
+  padding: 14px;
+  border: 1px solid rgba(79, 50, 36, 0.1);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.wisdom-detail-passage strong {
+  display: inline-block;
+  margin-bottom: 8px;
+  color: var(--wisdom-russet-deep);
+  font-size: 0.84rem;
+}
+
+.wisdom-detail-passage p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.72;
 }
 
 .coach-history {
@@ -1405,6 +1536,11 @@ h3 {
     min-width: 0;
     border-radius: 18px;
   }
+
+  .wisdom-detail-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 
 @media (max-width: 640px) {
@@ -1487,5 +1623,14 @@ h3 {
 
   .wisdom-inline-meta span {
     font-size: 0.76rem;
+  }
+
+  .wisdom-detail-overlay {
+    padding: 12px;
+  }
+
+  .wisdom-detail-sheet {
+    padding: 18px;
+    border-radius: 22px;
   }
 }
