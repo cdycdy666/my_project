@@ -286,40 +286,15 @@ export function WisdomAdvisorStudio() {
               <span className="eyebrow">Counsel Console</span>
               <span className="wisdom-ribbon-copy">{systemStatus}</span>
             </div>
-            <h1>个人沟通顾问台</h1>
-            <p className="tool-intro">把真实处境讲出来，它会先替你过一遍局面，再把能直接拿去说、拿去做的动作给出来。</p>
-          </div>
-          <aside className="wisdom-hero-aside">
-            <p className="micro-label">适合这样的时刻</p>
-            <strong>你不一定情绪失控，只是想先想清楚，再把话说稳。</strong>
             <div className="wisdom-inline-meta">
+              <span>你不一定情绪失控，只是想先想清楚，再把话说稳</span>
               <span>{library?.totalSources ?? "--"} 条资料</span>
               <span>最近更新 {latestSourceDate}</span>
             </div>
-          </aside>
+            <h1>个人沟通顾问台</h1>
+            <p className="tool-intro">把真实处境讲出来，它会先替你过一遍局面，再把能直接拿去说、拿去做的动作给出来。</p>
+          </div>
         </header>
-
-        <div className="wisdom-scenario-prompt">
-          <div className="wisdom-scenario-header">
-            <span>你可以直接点一个，再改成自己的处境</span>
-            <button className="wisdom-refresh-button" onClick={refreshScenarioBatch} type="button">
-              换一批
-            </button>
-          </div>
-          <div className="wisdom-hero-scenarios">
-            {scenarioBatch.map((scenario) => (
-              <button
-                className="scenario-pill"
-                key={scenario.title}
-                onClick={(event) => handleScenarioClick(event, scenario.question, scenario.context)}
-                type="button"
-              >
-                <span>{scenario.title}</span>
-                <strong>{scenario.question}</strong>
-              </button>
-            ))}
-          </div>
-        </div>
 
         <section className="wisdom-thread" ref={answerRef}>
           <article className="chat-bubble chat-bubble-user">
@@ -378,6 +353,28 @@ export function WisdomAdvisorStudio() {
                   <p>如果你公开分享这个页面，建议给试用者单独发访问码，而不是完全裸放在公网。</p>
                 </div>
               </details>
+
+              <div className="wisdom-scenario-prompt">
+                <div className="wisdom-scenario-header">
+                  <span>也可以先点一个场景，再改成自己的处境</span>
+                  <button className="wisdom-refresh-button" onClick={refreshScenarioBatch} type="button">
+                    换一批
+                  </button>
+                </div>
+                <div className="wisdom-hero-scenarios">
+                  {scenarioBatch.map((scenario) => (
+                    <button
+                      className="scenario-pill"
+                      key={scenario.title}
+                      onClick={(event) => handleScenarioClick(event, scenario.question, scenario.context)}
+                      type="button"
+                    >
+                      <span>{scenario.title}</span>
+                      <strong>{scenario.question}</strong>
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               <div className="chat-composer-footer">
                 <button

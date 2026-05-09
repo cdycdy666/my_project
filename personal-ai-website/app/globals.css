@@ -692,15 +692,12 @@ h3 {
 }
 
 .wisdom-chat-header {
-  display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
-  align-items: end;
-  gap: 24px;
+  display: block;
 }
 
 .wisdom-chat-copy {
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 
 .wisdom-header-ribbon {
@@ -723,39 +720,18 @@ h3 {
 }
 
 .wisdom-chat-copy h1 {
-  max-width: 7ch;
+  max-width: 6ch;
   font-family: "Iowan Old Style", "Palatino Linotype", "Songti SC", serif;
-  font-size: clamp(2.8rem, 5vw, 4.8rem);
+  font-size: clamp(2.3rem, 4.2vw, 3.9rem);
   letter-spacing: -0.04em;
-  line-height: 1.02;
+  line-height: 1.08;
   text-wrap: balance;
 }
 
 .wisdom-chat-copy .tool-intro {
-  max-width: 32rem;
-  font-size: 1.02rem;
-  line-height: 1.72;
-}
-
-.wisdom-hero-aside {
-  display: grid;
-  gap: 12px;
-  align-self: center;
-  max-width: 340px;
-  justify-self: end;
-  padding: 16px 18px;
-  border: 1px solid rgba(79, 50, 36, 0.1);
-  border-radius: 22px;
-  background: linear-gradient(180deg, rgba(255, 253, 249, 0.9), rgba(250, 244, 238, 0.82));
-}
-
-.wisdom-hero-aside strong {
-  max-width: 15rem;
-  color: var(--wisdom-ink);
-  font-family: "Songti SC", STSong, "Noto Serif CJK SC", serif;
+  max-width: 36rem;
   font-size: 1rem;
-  line-height: 1.75;
-  font-weight: 700;
+  line-height: 1.68;
 }
 
 .wisdom-proof-strip {
@@ -792,6 +768,7 @@ h3 {
 .wisdom-scenario-prompt {
   display: grid;
   gap: 12px;
+  padding-top: 2px;
 }
 
 .wisdom-scenario-header {
@@ -810,7 +787,7 @@ h3 {
 .wisdom-inline-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
 }
 
 .wisdom-inline-meta span {
@@ -826,19 +803,15 @@ h3 {
 
 .wisdom-hero-scenarios {
   display: grid;
-  grid-auto-columns: minmax(260px, 1fr);
-  grid-auto-flow: column;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
-  overflow-x: auto;
-  padding-bottom: 4px;
-  scrollbar-width: thin;
 }
 
 .scenario-pill {
   display: grid;
   gap: 6px;
-  min-height: 118px;
-  padding: 15px 16px;
+  min-height: 106px;
+  padding: 14px 15px;
   border: 1px solid rgba(79, 50, 36, 0.1);
   border-radius: 18px;
   background: rgba(255, 252, 248, 0.88);
@@ -871,7 +844,7 @@ h3 {
 
 .scenario-pill strong {
   line-height: 1.45;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
 }
 
 .wisdom-refresh-button {
@@ -1520,22 +1493,13 @@ h3 {
     align-items: flex-start;
   }
 
-  .wisdom-chat-header {
-    grid-template-columns: 1fr;
-  }
-
-  .wisdom-hero-aside {
-    max-width: none;
-    justify-self: start;
-  }
-
   .chat-bubble-advisor,
   .chat-bubble-placeholder {
     width: 100%;
   }
 
   .wisdom-hero-scenarios {
-    grid-auto-columns: minmax(78vw, 1fr);
+    grid-template-columns: 1fr;
   }
 
   .wisdom-proof-strip {
@@ -1607,7 +1571,7 @@ h3 {
 
   .wisdom-chat-copy h1 {
     max-width: 100%;
-    font-size: clamp(2.1rem, 11vw, 3rem);
+    font-size: clamp(2rem, 10vw, 2.9rem);
   }
 
   .wisdom-scenario-header {
