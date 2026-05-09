@@ -182,14 +182,17 @@ export function WisdomAdvisorStudio() {
       <section className="wisdom-chat-frame">
         <header className="wisdom-chat-header">
           <div className="wisdom-chat-copy">
-            <p className="eyebrow">Counsel Console</p>
+            <div className="wisdom-header-ribbon">
+              <span className="eyebrow">Counsel Console</span>
+              <span className="wisdom-ribbon-copy">{systemStatus}</span>
+            </div>
             <h1>个人沟通顾问台</h1>
-            <p className="tool-intro">把真实处境讲出来，它会像一个分寸感很稳的顾问那样，先帮你判断局面，再告诉你下一步怎么说、怎么做。</p>
+            <p className="tool-intro">把真实处境讲出来，它会先替你过一遍局面，再把能直接拿去说、拿去做的动作给出来。</p>
           </div>
           <div className="wisdom-inline-meta">
-            <span>{systemStatus}</span>
             <span>{library?.totalSources ?? "--"} 条资料</span>
             <span>最近更新 {latestSourceDate}</span>
+            <span>适合先想清楚再开口的时候</span>
           </div>
         </header>
 
@@ -209,7 +212,7 @@ export function WisdomAdvisorStudio() {
         </section>
 
         <div className="wisdom-scenario-prompt">
-          <span>常见场景</span>
+          <span>你可以直接点一个，再改成自己的处境</span>
           <div className="wisdom-hero-scenarios">
             {QUICK_SCENARIOS.map((scenario) => (
               <button
@@ -236,19 +239,10 @@ export function WisdomAdvisorStudio() {
             </div>
 
             <form className="stack-form chat-composer" onSubmit={handleAsk}>
-              <div className="wisdom-access-note">
-                <label className="field wisdom-access-field">
-                  <span>访问码</span>
-                  <input
-                    autoComplete="off"
-                    name="accessCode"
-                    onChange={(event) => setAccessCode(event.target.value)}
-                    placeholder="如果这个页面已开启访问保护，就在这里输入"
-                    type="password"
-                    value={accessCode}
-                  />
-                </label>
-                <p>如果你公开分享这个页面，建议给试用者单独发访问码，而不是完全裸放在公网。</p>
+              <div className="wisdom-composer-hints" aria-label="提问提示">
+                <span>说清楚你最卡的点</span>
+                <span>补一句你最担心失去什么</span>
+                <span>不需要把前因后果全讲完</span>
               </div>
 
               <label className="field">
@@ -262,6 +256,7 @@ export function WisdomAdvisorStudio() {
                   value={question}
                 />
               </label>
+
               <label className="field">
                 <span>补充背景</span>
                 <textarea
@@ -272,6 +267,24 @@ export function WisdomAdvisorStudio() {
                   value={context}
                 />
               </label>
+
+              <details className="wisdom-access-note">
+                <summary>访问保护</summary>
+                <div className="wisdom-access-inner">
+                  <label className="field wisdom-access-field">
+                    <span>访问码</span>
+                    <input
+                      autoComplete="off"
+                      name="accessCode"
+                      onChange={(event) => setAccessCode(event.target.value)}
+                      placeholder="如果这个页面已开启访问保护，就在这里输入"
+                      type="password"
+                      value={accessCode}
+                    />
+                  </label>
+                  <p>如果你公开分享这个页面，建议给试用者单独发访问码，而不是完全裸放在公网。</p>
+                </div>
+              </details>
 
               <div className="chat-composer-footer">
                 <button
@@ -301,18 +314,18 @@ export function WisdomAdvisorStudio() {
               </div>
 
               <article className="insight-card wisdom-summary-card">
-                {openingQuestion ? <p className="wisdom-summary-kicker">顾问先说一句：{openingQuestion}</p> : null}
+                {openingQuestion ? <p className="wisdom-summary-kicker">一句总判断 · {openingQuestion}</p> : null}
                 <p>{answer.summary}</p>
               </article>
 
               <div className="wisdom-brief-grid">
                 <article className="insight-card wisdom-list-card">
                   <div className="wisdom-list-head">
-                    <p className="micro-label">先定判断</p>
-                    <span>先怎么想</span>
+                    <p className="micro-label">下一步动作</p>
+                    <span>先从哪里下手</span>
                   </div>
                   <ul className="plain-list wisdom-bullet-list">
-                    {answer.principles.map((item) => (
+                    {answer.actions.map((item) => (
                       <li key={item}>{item}</li>
                     ))}
                   </ul>
@@ -320,11 +333,11 @@ export function WisdomAdvisorStudio() {
 
                 <article className="insight-card wisdom-list-card">
                   <div className="wisdom-list-head">
-                    <p className="micro-label">下一步动作</p>
-                    <span>接下来怎么做</span>
+                    <p className="micro-label">先定判断</p>
+                    <span>这件事该怎么看</span>
                   </div>
                   <ul className="plain-list wisdom-bullet-list">
-                    {answer.actions.map((item) => (
+                    {answer.principles.map((item) => (
                       <li key={item}>{item}</li>
                     ))}
                   </ul>
