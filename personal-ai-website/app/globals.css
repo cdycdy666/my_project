@@ -697,7 +697,8 @@ h3 {
 
 .wisdom-chat-copy {
   display: grid;
-  gap: 8px;
+  gap: 10px;
+  max-width: 52rem;
 }
 
 .wisdom-header-ribbon {
@@ -719,19 +720,28 @@ h3 {
   font-weight: 600;
 }
 
+.wisdom-title-tag {
+  margin: 0;
+  color: rgba(79, 50, 36, 0.76);
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .wisdom-chat-copy h1 {
-  max-width: 12ch;
+  max-width: 14ch;
   font-family: "Iowan Old Style", "Palatino Linotype", "Songti SC", serif;
-  font-size: clamp(1.85rem, 3.1vw, 2.8rem);
-  letter-spacing: -0.04em;
-  line-height: 1.18;
+  font-size: clamp(2.3rem, 4vw, 3.9rem);
+  letter-spacing: -0.05em;
+  line-height: 1.04;
 }
 
 .wisdom-chat-copy .tool-intro {
-  max-width: 44rem;
+  max-width: 40rem;
   color: var(--muted);
-  font-size: 0.96rem;
-  line-height: 1.62;
+  font-size: 1rem;
+  line-height: 1.72;
 }
 
 .wisdom-proof-strip {
@@ -767,8 +777,8 @@ h3 {
 
 .wisdom-scenario-prompt {
   display: grid;
-  gap: 10px;
-  padding-top: 2px;
+  gap: 12px;
+  padding-top: 4px;
 }
 
 .wisdom-scenario-header {
@@ -780,14 +790,15 @@ h3 {
 
 .wisdom-scenario-prompt > span {
   color: var(--wisdom-fog);
-  font-size: 0.84rem;
+  font-size: 0.86rem;
   font-weight: 700;
 }
 
 .wisdom-inline-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
+  padding-top: 2px;
 }
 
 .wisdom-inline-meta span {
@@ -795,28 +806,28 @@ h3 {
   align-items: center;
   padding: 0;
   color: var(--wisdom-fog);
-  font-size: 0.8rem;
+  font-size: 0.82rem;
 }
 
 .wisdom-inline-meta span:not(:last-child)::after {
   content: "·";
-  margin-left: 8px;
+  margin-left: 10px;
   color: rgba(79, 50, 36, 0.28);
 }
 
 .wisdom-hero-scenarios {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 12px;
 }
 
 .scenario-pill {
   display: grid;
   gap: 6px;
-  min-height: 92px;
-  padding: 13px 14px;
+  min-height: 88px;
+  padding: 14px 15px;
   border: 1px solid rgba(79, 50, 36, 0.1);
-  border-radius: 18px;
+  border-radius: 20px;
   background: rgba(255, 252, 248, 0.88);
   color: inherit;
   text-align: left;
@@ -944,13 +955,13 @@ h3 {
 
 .chat-composer {
   display: grid;
-  gap: 12px;
+  gap: 14px;
 }
 
 .wisdom-composer-hints {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
 }
 
 .wisdom-composer-hints span {
@@ -1015,7 +1026,7 @@ h3 {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding-top: 4px;
+  padding-top: 6px;
 }
 
 .chat-composer-footer p {
@@ -1494,6 +1505,10 @@ h3 {
   .chat-composer-footer {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .wisdom-chat-copy h1 {
+    max-width: 10ch;
   }
 
   .chat-bubble-advisor,

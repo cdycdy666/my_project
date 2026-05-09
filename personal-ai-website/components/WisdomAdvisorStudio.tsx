@@ -286,8 +286,9 @@ export function WisdomAdvisorStudio() {
               <span className="eyebrow">Counsel Console</span>
               <span className="wisdom-ribbon-copy">{systemStatus}</span>
             </div>
-            <h1>个人沟通顾问</h1>
-            <p className="tool-intro">把真实处境讲出来。它会先替你判断局面，再把真正能拿去说、拿去做的动作整理出来。</p>
+            <p className="wisdom-title-tag">个人沟通顾问</p>
+            <h1>先把问题讲清，再把话说稳。</h1>
+            <p className="tool-intro">把真实处境讲出来。它会先替你判断局面，再把真正能拿去说、拿去做的动作整理出来，不用你一个人先把话术硬想完整。</p>
             <div className="wisdom-inline-meta">
               <span>适合那些你不想把话说重、但也不想把自己憋住的时候</span>
               <span>{library?.totalSources ?? "--"} 条资料沉淀</span>
