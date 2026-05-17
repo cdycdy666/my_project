@@ -41,6 +41,8 @@ export type AdviceHistoryTurn = {
 export type AdviceResult = {
   mode: "answer" | "clarify";
   situation: string;
+  continuation: string;
+  conversationSummary: string;
   summary: string;
   principles: string[];
   actions: string[];
@@ -82,6 +84,8 @@ type QuestionAnalysis = {
 
 type ModelAdvicePayload = {
   situation?: unknown;
+  continuation?: unknown;
+  conversationSummary?: unknown;
   summary?: unknown;
   principles?: unknown;
   actions?: unknown;
@@ -253,6 +257,8 @@ export async function buildAdvice(question: string, context = "", history: Advic
   const knowledgeBase = await loadKnowledgeBase();
   const retrievalText = buildRetrievalText(trimmedQuestion, context, history);
   const analysis = analyzeQuestion(trimmedQuestion, retrievalText);
+  const conversationSummary = buildConversationSummary(trimmedQuestion, context, history, analysis);
+  const continuation = buildContinuation(trimmedQuestion, context, history, analysis);
   const ranked = rankEvidence(knowledgeBase.sources, analysis);
   const evidence = pickEvidence(ranked, 6);
   const confidence = estimateAdviceConfidence(trimmedQuestion, context, analysis, ranked, evidence);
@@ -281,6 +287,8 @@ export async function buildAdvice(question: string, context = "", history: Advic
     return {
       mode: "clarify",
       situation: `先补一个关键判断 · ${analysis.primaryPlaybook.label}`,
+      continuation,
+      conversationSummary,
       summary: clarification.reason,
       principles: [],
       actions: [],
@@ -312,6 +320,8 @@ export async function buildAdvice(question: string, context = "", history: Advic
     return {
       mode: "answer",
       situation: modelAdvice.situation,
+      continuation: modelAdvice.continuation || continuation,
+      conversationSummary: modelAdvice.conversationSummary || conversationSummary,
       summary: modelAdvice.summary,
       principles:
         modelAdvice.principles.length > 0
@@ -348,6 +358,8 @@ export async function buildAdvice(question: string, context = "", history: Advic
   return {
     mode: "answer",
     situation: analysis.primaryPlaybook.label,
+    continuation,
+    conversationSummary,
     summary: buildSummary(analysis.primaryPlaybook, visibleEvidence),
     principles: dedupeStrings([...analysis.primaryPlaybook.principles, ...fallbackNotes]).slice(0, 4),
     actions: dedupeStrings([
@@ -411,8 +423,10 @@ async function generateAdviceWithModel(input: {
     "如果用户真正卡住的是顾虑或关系风险，要正面回答那个顾虑，不要只给原则。",
     "principles 要写成判断，不要写成口号；actions 要写成此刻就能执行的动作；pitfalls 要写成最容易把事情搞坏的处理方式。",
     "输出必须是 JSON 对象，不要输出 Markdown 代码块，不要加解释。",
-    "JSON 结构必须包含：situation, summary, principles, actions, pitfalls。",
+    "JSON 结构必须包含：situation, continuation, conversationSummary, summary, principles, actions, pitfalls。",
     "situation 要写成一句简短的场景判断，尽量控制在 10 到 22 个字。",
+    "continuation 要写成一句承接用户上一轮补充的话，说明你这轮接住了哪个顾虑或变化；如果是第一轮，也要说明你先抓住的主矛盾。",
+    "conversationSummary 要写成一句当前局面摘要，包含用户处境、主要顾虑和这一轮要处理的分寸。",
     "principles/actions/pitfalls 都必须是 3 到 4 条中文短句数组，每条尽量 14 到 30 个字。",
     "summary 用 2 到 3 句中文，先判断局面，再指出最关键的应对方向，读起来要像顾问在当面说话。",
   ].join(" ");
@@ -426,12 +440,13 @@ async function generateAdviceWithModel(input: {
       ? `次级可能场景：${input.analysis.secondaryPlaybooks.map((item) => item.label).join("、")}`
       : "次级可能场景：无",
     input.analysis.focusTerms.length ? `当前要抓的关键词：${input.analysis.focusTerms.join("、")}` : "当前要抓的关键词：无",
+    `当前局面摘要：${buildConversationSummary(input.question, input.context, input.history, input.analysis)}`,
     `规则预判原则：${input.analysis.primaryPlaybook.principles.join("；")}`,
     `当前回答把握度：${Math.round(input.confidence * 100)}%`,
     "请综合以下检索证据，给出更像真人顾问的回答：",
     evidenceText || "暂无高相关证据，请基于问题谨慎作答。",
     "注意：不要出现“先沟通再表达”这类空泛套话；不要重复标题；如果用户问题里有明显顾虑，要正面回应那个顾虑。",
-    '只返回 JSON，例如：{"situation":"...","summary":"...","principles":["..."],"actions":["..."],"pitfalls":["..."]}',
+    '只返回 JSON，例如：{"situation":"...","continuation":"...","conversationSummary":"...","summary":"...","principles":["..."],"actions":["..."],"pitfalls":["..."]}',
   ].join("\n\n");
 
   const response = await fetch(endpoint, {
@@ -693,6 +708,65 @@ function buildRetrievalText(question: string, context: string, history: AdviceHi
   return [recentTurns, question, context].filter(Boolean).join("\n");
 }
 
+function buildConversationSummary(question: string, context: string, history: AdviceHistoryTurn[], analysis: QuestionAnalysis) {
+  const recentUserTurns = history
+    .filter((turn) => turn.role === "user")
+    .slice(-3)
+    .map((turn) => turn.content.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+  const currentNeed = [question, context].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+  const concern = inferPrimaryConcern(`${recentUserTurns.join(" ")} ${currentNeed}`);
+  const topic = cleanCompactText(recentUserTurns[0] || question, 36);
+  const current = cleanCompactText(currentNeed || question, 48);
+
+  if (recentUserTurns.length > 0) {
+    return `主线是“${topic}”，这一轮补充到“${current}”，重点要在${analysis.primaryPlaybook.label}里处理${concern}。`;
+  }
+
+  return `用户正在处理“${current}”，重点要在${analysis.primaryPlaybook.label}里处理${concern}。`;
+}
+
+function buildContinuation(question: string, context: string, history: AdviceHistoryTurn[], analysis: QuestionAnalysis) {
+  const latestUserTurn = history
+    .filter((turn) => turn.role === "user")
+    .at(-1)
+    ?.content.replace(/\s+/g, " ")
+    .trim();
+  const currentNeed = cleanCompactText([question, context].filter(Boolean).join(" "), 42);
+  const concern = inferPrimaryConcern(`${latestUserTurn || ""} ${question} ${context}`);
+
+  if (latestUserTurn) {
+    return `我这轮接着你刚才补充的“${cleanCompactText(latestUserTurn, 34)}”继续看，先把${concern}和下一步分开。`;
+  }
+
+  return `我先抓住这件事的主线：它属于${analysis.primaryPlaybook.label}，关键不是把话说漂亮，而是把${concern}处理稳。`;
+}
+
+function inferPrimaryConcern(text: string) {
+  const compact = text.replace(/\s+/g, "");
+  if (/伤关系|关系|不想僵|撕破脸|朋友|家人|伴侣/.test(compact)) {
+    return "关系风险";
+  }
+  if (/结果|offer|薪|成交|机会|晋升|客户|交付/.test(compact)) {
+    return "结果目标";
+  }
+  if (/拒绝|边界|不想|占用|麻烦|答应/.test(compact)) {
+    return "边界表达";
+  }
+  if (/反驳|生气|吵|冷战|情绪|不高兴/.test(compact)) {
+    return "情绪升级";
+  }
+  return "分寸和行动顺序";
+}
+
+function cleanCompactText(value: string, limit: number) {
+  const compact = value.replace(/\s+/g, " ").trim();
+  if (compact.length <= limit) {
+    return compact;
+  }
+  return `${compact.slice(0, limit - 1).trim()}…`;
+}
+
 function estimateAdviceConfidence(
   question: string,
   context: string,
@@ -847,6 +921,8 @@ function normalizeModelAdvice(payload: ModelAdvicePayload, fallbackSituation: st
   return {
     mode: "answer",
     situation: normalizeSentence(payload.situation, fallbackSituation),
+    continuation: normalizeSentence(payload.continuation, ""),
+    conversationSummary: normalizeSentence(payload.conversationSummary, ""),
     summary: normalizeSentence(payload.summary, "先按事实、边界和下一步来整理你的表达。"),
     principles: normalizeList(payload.principles, 4),
     actions: normalizeList(payload.actions, 4),

@@ -17,6 +17,8 @@ type LibrarySource = {
 type AdviceResponse = {
   mode: "answer" | "clarify";
   situation: string;
+  continuation: string;
+  conversationSummary: string;
   summary: string;
   principles: string[];
   actions: string[];
@@ -153,6 +155,7 @@ export function WisdomAdvisorStudio() {
   const [question, setQuestion] = useState(QUICK_SCENARIOS[0].question);
   const [context, setContext] = useState(QUICK_SCENARIOS[0].context);
   const [scenarioBatch, setScenarioBatch] = useState(() => QUICK_SCENARIOS.slice(0, SCENARIO_BATCH_SIZE));
+  const [expandedTurns, setExpandedTurns] = useState<Set<string>>(() => new Set());
   const [selectedSource, setSelectedSource] = useState<LibrarySourceDetail | null>(null);
   const [selectedExcerpt, setSelectedExcerpt] = useState("");
   const [selectedMatchMeta, setSelectedMatchMeta] = useState("");
@@ -200,6 +203,10 @@ export function WisdomAdvisorStudio() {
   const hasConversation = conversation.length > 0;
   const userTurns = conversation.filter((turn) => turn.role === "user");
   const activeTopic = userTurns[0]?.question ?? "";
+  const assistantTurns = conversation.filter((turn): turn is Extract<ConversationTurn, { role: "assistant" }> => turn.role === "assistant");
+  const latestAssistantTurn = assistantTurns.at(-1);
+  const latestUserTurn = userTurns.at(-1);
+  const currentUnderstanding = latestAssistantTurn?.advice.conversationSummary || "等你补充第一句后，这里会沉淀当前局面的主线和顾虑。";
 
   async function handleAsk(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -315,6 +322,7 @@ export function WisdomAdvisorStudio() {
 
   function resetConversation() {
     setConversation([]);
+    setExpandedTurns(new Set());
     setAskError("");
     setQuestion(QUICK_SCENARIOS[0].question);
     setContext(QUICK_SCENARIOS[0].context);
@@ -327,6 +335,18 @@ export function WisdomAdvisorStudio() {
 
   function refreshScenarioBatch() {
     setScenarioBatch((currentBatch) => pickScenarioBatch(currentBatch.map((item) => item.title)));
+  }
+
+  function toggleTurnExpansion(turnId: string) {
+    setExpandedTurns((current) => {
+      const next = new Set(current);
+      if (next.has(turnId)) {
+        next.delete(turnId);
+      } else {
+        next.add(turnId);
+      }
+      return next;
+    });
   }
 
   async function openSourceDetail(sourceId: string, excerpt = "", matchMeta = "") {
@@ -366,6 +386,25 @@ export function WisdomAdvisorStudio() {
 
   function renderAssistantTurn(advice: AdviceResponse, key: string, isLatest: boolean) {
     const turnOpening = advice.summary.split("。")[0]?.trim();
+    const isExpanded = isLatest || expandedTurns.has(key);
+    if (!isExpanded) {
+      return (
+        <article className="chat-bubble chat-bubble-advisor chat-bubble-advisor-compact" key={key}>
+          <div className="chat-bubble-head">
+            <div className="chat-avatar chat-avatar-advisor">顾问</div>
+            <div>
+              <p className="micro-label">上一轮判断</p>
+              <strong>{advice.situation}</strong>
+            </div>
+          </div>
+          <p className="compact-turn-summary">{advice.conversationSummary || advice.summary}</p>
+          <button className="compact-turn-toggle" onClick={() => toggleTurnExpansion(key)} type="button">
+            展开这一轮
+          </button>
+        </article>
+      );
+    }
+
     return (
       <article className="chat-bubble chat-bubble-advisor" key={key}>
         <div className="chat-bubble-head">
@@ -377,9 +416,16 @@ export function WisdomAdvisorStudio() {
         </div>
 
         <article className="insight-card wisdom-summary-card">
+          {advice.continuation ? <p className="wisdom-continuation-line">{advice.continuation}</p> : null}
           {turnOpening ? <p className="wisdom-summary-kicker">一句总判断 · {turnOpening}</p> : null}
           <p>{advice.summary}</p>
         </article>
+
+        {!isLatest ? (
+          <button className="compact-turn-toggle compact-turn-toggle-end" onClick={() => toggleTurnExpansion(key)} type="button">
+            收起这一轮
+          </button>
+        ) : null}
 
         {advice.mode === "clarify" && advice.clarification ? (
           <article className="insight-card wisdom-list-card">
@@ -550,11 +596,21 @@ export function WisdomAdvisorStudio() {
               <div>
                 <p className="micro-label">当前话题</p>
                 <strong>{activeTopic}</strong>
-                <span>已来回 {conversation.length} 条消息，这一轮会带着前面对话继续判断。</span>
+                <span>
+                  已来回 {conversation.length} 条消息
+                  {latestUserTurn?.question ? `，最近补充：${latestUserTurn.question}` : "，这一轮会带着前面对话继续判断。"}
+                </span>
               </div>
               <button className="wisdom-thread-reset" onClick={resetConversation} type="button">
                 开始新话题
               </button>
+            </section>
+          ) : null}
+
+          {hasConversation ? (
+            <section className="wisdom-understanding-card" aria-label="顾问当前理解">
+              <p className="micro-label">顾问已理解的局面</p>
+              <strong>{currentUnderstanding}</strong>
             </section>
           ) : null}
 
