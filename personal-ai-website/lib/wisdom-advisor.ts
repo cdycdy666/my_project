@@ -33,6 +33,11 @@ export type AdviceClarification = {
   options: string[];
 };
 
+export type AdviceHistoryTurn = {
+  role: "user" | "assistant";
+  content: string;
+};
+
 export type AdviceResult = {
   mode: "answer" | "clarify";
   situation: string;
@@ -239,14 +244,15 @@ export async function hasKnowledgeSourceWithTitle(title: string) {
   return knowledgeBase.sources.some((source) => source.title.trim() === normalized);
 }
 
-export async function buildAdvice(question: string, context = ""): Promise<AdviceResult> {
+export async function buildAdvice(question: string, context = "", history: AdviceHistoryTurn[] = []): Promise<AdviceResult> {
   const trimmedQuestion = question.trim();
   if (!trimmedQuestion) {
     throw new Error("问题不能为空。");
   }
 
   const knowledgeBase = await loadKnowledgeBase();
-  const analysis = analyzeQuestion(trimmedQuestion, context);
+  const retrievalText = buildRetrievalText(trimmedQuestion, context, history);
+  const analysis = analyzeQuestion(trimmedQuestion, retrievalText);
   const ranked = rankEvidence(knowledgeBase.sources, analysis);
   const evidence = pickEvidence(ranked, 6);
   const confidence = estimateAdviceConfidence(trimmedQuestion, context, analysis, ranked, evidence);
@@ -296,6 +302,7 @@ export async function buildAdvice(question: string, context = ""): Promise<Advic
   const modelAdvice = await generateAdviceWithModel({
     question: trimmedQuestion,
     context,
+    history,
     analysis,
     evidence,
     confidence,
@@ -368,6 +375,7 @@ export async function buildAdvice(question: string, context = ""): Promise<Advic
 async function generateAdviceWithModel(input: {
   question: string;
   context: string;
+  history: AdviceHistoryTurn[];
   analysis: QuestionAnalysis;
   evidence: RankedEvidence[];
   confidence: number;
@@ -388,6 +396,11 @@ async function generateAdviceWithModel(input: {
     )
     .join("\n\n");
 
+  const historyText = input.history
+    .slice(-6)
+    .map((turn, index) => `${turn.role === "user" ? "用户" : "顾问"}${index + 1}：${turn.content}`)
+    .join("\n");
+
   const systemPrompt = [
     "你是一个成熟、克制、见过很多真实场景的中文沟通与处事顾问。",
     "你的任务不是讲道理，也不是空泛安慰，而是基于给定证据做判断、定分寸、给动作。",
@@ -405,6 +418,7 @@ async function generateAdviceWithModel(input: {
   ].join(" ");
 
   const userPrompt = [
+    historyText ? `最近对话：\n${historyText}` : "最近对话：无",
     `用户问题：${input.question}`,
     input.context ? `补充背景：${input.context}` : "补充背景：无",
     `问题分型主判断：${input.analysis.primaryPlaybook.label}`,
@@ -668,6 +682,15 @@ function uniqueBySource(items: Array<{ source: KnowledgeSource; excerpt: string;
     seen.add(item.source.id);
     return true;
   });
+}
+
+function buildRetrievalText(question: string, context: string, history: AdviceHistoryTurn[]) {
+  const recentTurns = history
+    .slice(-6)
+    .map((turn) => `${turn.role === "user" ? "用户" : "顾问"}：${turn.content}`)
+    .join("\n");
+
+  return [recentTurns, question, context].filter(Boolean).join("\n");
 }
 
 function estimateAdviceConfidence(

@@ -44,6 +44,19 @@ type AdviceResponse = {
   }>;
 };
 
+type ConversationTurn =
+  | {
+      id: string;
+      role: "user";
+      question: string;
+      context: string;
+    }
+  | {
+      id: string;
+      role: "assistant";
+      advice: AdviceResponse;
+    };
+
 type LibraryPayload = {
   totalSources: number;
   totalPassages: number;
@@ -135,7 +148,7 @@ export function WisdomAdvisorStudio() {
   const [libraryError, setLibraryError] = useState("");
   const [asking, setAsking] = useState(false);
   const [askError, setAskError] = useState("");
-  const [answer, setAnswer] = useState<AdviceResponse | null>(null);
+  const [conversation, setConversation] = useState<ConversationTurn[]>([]);
   const [accessCode, setAccessCode] = useState("");
   const [question, setQuestion] = useState(QUICK_SCENARIOS[0].question);
   const [context, setContext] = useState(QUICK_SCENARIOS[0].context);
@@ -184,20 +197,49 @@ export function WisdomAdvisorStudio() {
   }, [library]);
 
   const systemStatus = libraryError ? "知识库待修复" : "Qwen + 本地知识库已联动";
-  const openingQuestion = answer ? answer.summary.split("。")[0]?.trim() : "";
 
   async function handleAsk(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     await submitAsk();
   }
 
-  async function submitAsk(overrides?: { question?: string; context?: string }) {
+  function serializeHistory(turns: ConversationTurn[]) {
+    return turns.slice(-8).map((turn) => {
+      if (turn.role === "user") {
+        return {
+          role: "user" as const,
+          content: [turn.question.trim(), turn.context.trim() ? `背景：${turn.context.trim()}` : ""].filter(Boolean).join("\n"),
+        };
+      }
+
+      if (turn.advice.mode === "clarify" && turn.advice.clarification) {
+        return {
+          role: "assistant" as const,
+          content: `判断：${turn.advice.summary}\n追问：${turn.advice.clarification.question}`,
+        };
+      }
+
+      return {
+        role: "assistant" as const,
+        content: `判断：${turn.advice.situation}\n建议：${turn.advice.summary}`,
+      };
+    });
+  }
+
+  async function submitAsk(overrides?: {
+    requestQuestion?: string;
+    requestContext?: string;
+    displayQuestion?: string;
+    displayContext?: string;
+  }) {
     setAsking(true);
     setAskError("");
 
     try {
-      const questionToAsk = overrides?.question ?? question;
-      const contextToAsk = overrides?.context ?? context;
+      const questionToAsk = overrides?.requestQuestion ?? question;
+      const contextToAsk = overrides?.requestContext ?? context;
+      const displayQuestion = overrides?.displayQuestion ?? questionToAsk;
+      const displayContext = overrides?.displayContext ?? contextToAsk;
       const response = await fetch("/api/wisdom-advisor/ask", {
         method: "POST",
         headers: {
@@ -207,6 +249,7 @@ export function WisdomAdvisorStudio() {
           question: questionToAsk,
           context: contextToAsk,
           accessCode,
+          history: serializeHistory(conversation),
         }),
       });
       const payload = (await response.json()) as {
@@ -226,7 +269,21 @@ export function WisdomAdvisorStudio() {
         }
       }
       setAskError("");
-      setAnswer(payload.advice);
+      const advice = payload.advice;
+      setConversation((current) => [
+        ...current,
+        {
+          id: `user-${Date.now()}`,
+          role: "user",
+          question: displayQuestion,
+          context: displayContext,
+        },
+        {
+          id: `assistant-${Date.now()}`,
+          role: "assistant",
+          advice,
+        },
+      ]);
       requestAnimationFrame(() => {
         answerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       });
@@ -240,7 +297,12 @@ export function WisdomAdvisorStudio() {
   async function handleClarificationPick(option: string) {
     const nextContext = [context.trim(), `补充判断：${option}`].filter(Boolean).join("\n");
     setContext(nextContext);
-    await submitAsk({ context: nextContext });
+    await submitAsk({
+      requestQuestion: question,
+      requestContext: nextContext,
+      displayQuestion: option,
+      displayContext: "针对顾问追问的补充",
+    });
   }
 
   function useScenario(questionText: string, contextText: string) {
@@ -292,6 +354,166 @@ export function WisdomAdvisorStudio() {
     setDetailLoading(false);
   }
 
+  function renderAssistantTurn(advice: AdviceResponse, key: string, isLatest: boolean) {
+    const turnOpening = advice.summary.split("。")[0]?.trim();
+    return (
+      <article className="chat-bubble chat-bubble-advisor" key={key}>
+        <div className="chat-bubble-head">
+          <div className="chat-avatar chat-avatar-advisor">顾问</div>
+          <div>
+            <p className="micro-label">顾问回答</p>
+            <strong>{advice.situation}</strong>
+          </div>
+        </div>
+
+        <article className="insight-card wisdom-summary-card">
+          {turnOpening ? <p className="wisdom-summary-kicker">一句总判断 · {turnOpening}</p> : null}
+          <p>{advice.summary}</p>
+        </article>
+
+        {advice.mode === "clarify" && advice.clarification ? (
+          <article className="insight-card wisdom-list-card">
+            <div className="wisdom-list-head">
+              <p className="micro-label">顾问先追问一句</p>
+              <span>补这一句后，判断会更准</span>
+            </div>
+            <p className="wisdom-clarify-question">{advice.clarification.question}</p>
+            <div className="wisdom-clarify-options">
+              {advice.clarification.options.map((option) => (
+                <button
+                  className="wisdom-clarify-button"
+                  disabled={asking}
+                  key={option}
+                  onClick={() => {
+                    void handleClarificationPick(option);
+                  }}
+                  type="button"
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          </article>
+        ) : null}
+
+        {advice.mode === "answer" ? (
+          <>
+            <div className="wisdom-brief-grid">
+              <article className="insight-card wisdom-list-card">
+                <div className="wisdom-list-head">
+                  <p className="micro-label">先定判断</p>
+                  <span>这件事该怎么看</span>
+                </div>
+                <ul className="plain-list wisdom-bullet-list">
+                  {advice.principles.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </article>
+
+              <article className="insight-card wisdom-list-card">
+                <div className="wisdom-list-head">
+                  <p className="micro-label">下一步动作</p>
+                  <span>先从哪里下手</span>
+                </div>
+                <ul className="plain-list wisdom-bullet-list">
+                  {advice.actions.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </article>
+            </div>
+
+            <article className="insight-card caution-card wisdom-list-card">
+              <div className="wisdom-list-head">
+                <p className="micro-label">尽量避免</p>
+                <span>最容易搞坏的处理方式</span>
+              </div>
+              <ul className="plain-list wisdom-bullet-list">
+                {advice.pitfalls.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </article>
+          </>
+        ) : null}
+
+        <details className="wisdom-evidence-wrap">
+          <summary>这次回答参考了哪些资料</summary>
+          <div className="wisdom-reference-grid">
+            <article className="markdown-card evidence-card">
+              <div className="wisdom-list-head">
+                <p className="micro-label">命中片段</p>
+                <span>{advice.evidence.length} 条证据</span>
+              </div>
+              <div className="evidence-stack">
+                {advice.evidence.map((item) => (
+                  <button
+                    className="evidence-item evidence-item-button"
+                    key={`${item.sourceId}-${item.excerpt}`}
+                    onClick={() =>
+                      void openSourceDetail(
+                        item.sourceId,
+                        item.excerpt,
+                        `${item.sourceType} · 匹配度 ${Math.round(item.score * 100)}%`
+                      )
+                    }
+                    type="button"
+                  >
+                    <div className="evidence-head">
+                      <strong>{item.sourceTitle}</strong>
+                      <span>
+                        {item.sourceType} · 匹配度 {Math.round(item.score * 100)}%
+                      </span>
+                    </div>
+                    <p>{item.excerpt}</p>
+                  </button>
+                ))}
+              </div>
+            </article>
+
+            <article className="insight-card related-card">
+              <div className="wisdom-list-head">
+                <p className="micro-label">关联来源</p>
+                <span>{advice.relatedSources.length} 份资料</span>
+              </div>
+              <div className="related-source-list">
+                {advice.relatedSources.map((item) => (
+                  <button
+                    className="related-source-item related-source-button"
+                    key={item.id}
+                    onClick={() => void openSourceDetail(item.id)}
+                    type="button"
+                  >
+                    <strong>{item.title}</strong>
+                    <p>{item.summary}</p>
+                  </button>
+                ))}
+              </div>
+            </article>
+          </div>
+        </details>
+
+        {isLatest ? (
+          <section className="wisdom-proof-strip wisdom-proof-strip-late" aria-label="顾问能力概览">
+            <article>
+              <strong>{library?.totalSources ?? "--"}+</strong>
+              <span>真实资料沉淀</span>
+            </article>
+            <article>
+              <strong>先检索</strong>
+              <span>不是凭空给建议</span>
+            </article>
+            <article>
+              <strong>再生成</strong>
+              <span>回答更像真人顾问</span>
+            </article>
+          </section>
+        ) : null}
+      </article>
+    );
+  }
+
   return (
     <div className="tool-shell wisdom-shell">
       <section className="wisdom-chat-frame">
@@ -313,6 +535,53 @@ export function WisdomAdvisorStudio() {
         </header>
 
         <section className="wisdom-thread" ref={answerRef}>
+          {conversation.length ? (
+            conversation.map((turn, index) => {
+              if (turn.role === "user") {
+                return (
+                  <article className="chat-bubble chat-bubble-user-turn" key={turn.id}>
+                    <div className="chat-bubble-head">
+                      <div className="chat-avatar">你</div>
+                      <div>
+                        <p className="micro-label">你的补充</p>
+                        <strong>{turn.question}</strong>
+                      </div>
+                    </div>
+                    {turn.context ? <p className="chat-user-context">{turn.context}</p> : null}
+                  </article>
+                );
+              }
+
+              const isLatestAssistant = !conversation.slice(index + 1).some((item) => item.role === "assistant");
+              return renderAssistantTurn(turn.advice, turn.id, isLatestAssistant);
+            })
+          ) : (
+            <article className="chat-bubble chat-bubble-placeholder">
+              <div className="chat-bubble-head">
+                <div className="chat-avatar chat-avatar-advisor">顾问</div>
+                <div>
+                  <p className="micro-label">顾问回答</p>
+                  <strong>等你把问题说出来</strong>
+                </div>
+              </div>
+              <p className="chat-placeholder-copy">这里会先帮你判断局面，再给你几个真能拿去用的动作和提醒，不会只给空泛的大道理。</p>
+              <section className="wisdom-proof-strip wisdom-proof-strip-late" aria-label="顾问能力概览">
+                <article>
+                  <strong>{library?.totalSources ?? "--"}+</strong>
+                  <span>真实资料沉淀</span>
+                </article>
+                <article>
+                  <strong>先检索</strong>
+                  <span>不是凭空给建议</span>
+                </article>
+                <article>
+                  <strong>再生成</strong>
+                  <span>回答更像真人顾问</span>
+                </article>
+              </section>
+            </article>
+          )}
+
           <article className="chat-bubble chat-bubble-user">
             <div className="chat-bubble-head">
               <div className="chat-avatar">你</div>
@@ -407,186 +676,6 @@ export function WisdomAdvisorStudio() {
               {askError ? <p className="error-text">{askError}</p> : null}
             </form>
           </article>
-
-          {answer ? (
-            <article className="chat-bubble chat-bubble-advisor">
-              <div className="chat-bubble-head">
-                <div className="chat-avatar chat-avatar-advisor">顾问</div>
-                <div>
-                  <p className="micro-label">顾问回答</p>
-                  <strong>{answer.situation}</strong>
-                </div>
-              </div>
-
-              <article className="insight-card wisdom-summary-card">
-                {openingQuestion ? <p className="wisdom-summary-kicker">一句总判断 · {openingQuestion}</p> : null}
-                <p>{answer.summary}</p>
-              </article>
-
-              {answer.mode === "clarify" && answer.clarification ? (
-                <article className="insight-card wisdom-list-card">
-                  <div className="wisdom-list-head">
-                    <p className="micro-label">顾问先追问一句</p>
-                    <span>补这一句后，判断会更准</span>
-                  </div>
-                  <p className="wisdom-clarify-question">{answer.clarification.question}</p>
-                  <div className="wisdom-clarify-options">
-                    {answer.clarification.options.map((option) => (
-                      <button
-                        className="wisdom-clarify-button"
-                        disabled={asking}
-                        key={option}
-                        onClick={() => {
-                          void handleClarificationPick(option);
-                        }}
-                        type="button"
-                      >
-                        {option}
-                      </button>
-                    ))}
-                  </div>
-                </article>
-              ) : null}
-
-              {answer.mode === "answer" ? (
-                <>
-                  <div className="wisdom-brief-grid">
-                    <article className="insight-card wisdom-list-card">
-                      <div className="wisdom-list-head">
-                        <p className="micro-label">先定判断</p>
-                        <span>这件事该怎么看</span>
-                      </div>
-                      <ul className="plain-list wisdom-bullet-list">
-                        {answer.principles.map((item) => (
-                          <li key={item}>{item}</li>
-                        ))}
-                      </ul>
-                    </article>
-
-                    <article className="insight-card wisdom-list-card">
-                      <div className="wisdom-list-head">
-                        <p className="micro-label">下一步动作</p>
-                        <span>先从哪里下手</span>
-                      </div>
-                      <ul className="plain-list wisdom-bullet-list">
-                        {answer.actions.map((item) => (
-                          <li key={item}>{item}</li>
-                        ))}
-                      </ul>
-                    </article>
-                  </div>
-
-                  <article className="insight-card caution-card wisdom-list-card">
-                    <div className="wisdom-list-head">
-                      <p className="micro-label">尽量避免</p>
-                      <span>最容易搞坏的处理方式</span>
-                    </div>
-                    <ul className="plain-list wisdom-bullet-list">
-                      {answer.pitfalls.map((item) => (
-                        <li key={item}>{item}</li>
-                      ))}
-                    </ul>
-                  </article>
-                </>
-              ) : null}
-
-              <details className="wisdom-evidence-wrap">
-                <summary>这次回答参考了哪些资料</summary>
-                <div className="wisdom-reference-grid">
-                  <article className="markdown-card evidence-card">
-                    <div className="wisdom-list-head">
-                      <p className="micro-label">命中片段</p>
-                      <span>{answer.evidence.length} 条证据</span>
-                    </div>
-                    <div className="evidence-stack">
-                      {answer.evidence.map((item) => (
-                        <button
-                          className="evidence-item evidence-item-button"
-                          key={`${item.sourceId}-${item.excerpt}`}
-                          onClick={() =>
-                            void openSourceDetail(
-                              item.sourceId,
-                              item.excerpt,
-                              `${item.sourceType} · 匹配度 ${Math.round(item.score * 100)}%`
-                            )
-                          }
-                          type="button"
-                        >
-                          <div className="evidence-head">
-                            <strong>{item.sourceTitle}</strong>
-                            <span>
-                              {item.sourceType} · 匹配度 {Math.round(item.score * 100)}%
-                            </span>
-                          </div>
-                          <p>{item.excerpt}</p>
-                        </button>
-                      ))}
-                    </div>
-                  </article>
-
-                  <article className="insight-card related-card">
-                    <div className="wisdom-list-head">
-                      <p className="micro-label">关联来源</p>
-                      <span>{answer.relatedSources.length} 份资料</span>
-                    </div>
-                    <div className="related-source-list">
-                      {answer.relatedSources.map((item) => (
-                        <button
-                          className="related-source-item related-source-button"
-                          key={item.id}
-                          onClick={() => void openSourceDetail(item.id)}
-                          type="button"
-                        >
-                          <strong>{item.title}</strong>
-                          <p>{item.summary}</p>
-                        </button>
-                      ))}
-                    </div>
-                  </article>
-                </div>
-              </details>
-
-              <section className="wisdom-proof-strip wisdom-proof-strip-late" aria-label="顾问能力概览">
-                <article>
-                  <strong>{library?.totalSources ?? "--"}+</strong>
-                  <span>真实资料沉淀</span>
-                </article>
-                <article>
-                  <strong>先检索</strong>
-                  <span>不是凭空给建议</span>
-                </article>
-                <article>
-                  <strong>再生成</strong>
-                  <span>回答更像真人顾问</span>
-                </article>
-              </section>
-            </article>
-          ) : (
-            <article className="chat-bubble chat-bubble-placeholder">
-              <div className="chat-bubble-head">
-                <div className="chat-avatar chat-avatar-advisor">顾问</div>
-                <div>
-                  <p className="micro-label">顾问回答</p>
-                  <strong>等你把问题说出来</strong>
-                </div>
-              </div>
-              <p className="chat-placeholder-copy">这里会先帮你判断局面，再给你几个真能拿去用的动作和提醒，不会只给空泛的大道理。</p>
-              <section className="wisdom-proof-strip wisdom-proof-strip-late" aria-label="顾问能力概览">
-                <article>
-                  <strong>{library?.totalSources ?? "--"}+</strong>
-                  <span>真实资料沉淀</span>
-                </article>
-                <article>
-                  <strong>先检索</strong>
-                  <span>不是凭空给建议</span>
-                </article>
-                <article>
-                  <strong>再生成</strong>
-                  <span>回答更像真人顾问</span>
-                </article>
-              </section>
-            </article>
-          )}
         </section>
       </section>
 

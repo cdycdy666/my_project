@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { buildAdvice } from "../../../../lib/wisdom-advisor";
+import { AdviceHistoryTurn, buildAdvice } from "../../../../lib/wisdom-advisor";
 
 type RateLimitEntry = {
   count: number;
@@ -19,6 +19,7 @@ export async function POST(request: Request) {
       question?: string;
       context?: string;
       accessCode?: string;
+      history?: AdviceHistoryTurn[];
     };
 
     const rateLimit = consumeRateLimit(request);
@@ -53,7 +54,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const advice = await buildAdvice(payload.question || "", payload.context || "");
+    const advice = await buildAdvice(payload.question || "", payload.context || "", Array.isArray(payload.history) ? payload.history : []);
     return NextResponse.json({
       ok: true,
       advice,
