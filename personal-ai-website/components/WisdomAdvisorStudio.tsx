@@ -15,11 +15,18 @@ type LibrarySource = {
 };
 
 type AdviceResponse = {
+  mode: "answer" | "clarify";
   situation: string;
   summary: string;
   principles: string[];
   actions: string[];
   pitfalls: string[];
+  confidence: number;
+  clarification: {
+    question: string;
+    reason: string;
+    options: string[];
+  } | null;
   evidence: Array<{
     sourceId: string;
     sourceTitle: string;
@@ -184,19 +191,21 @@ export function WisdomAdvisorStudio() {
     await submitAsk();
   }
 
-  async function submitAsk() {
+  async function submitAsk(overrides?: { question?: string; context?: string }) {
     setAsking(true);
     setAskError("");
 
     try {
+      const questionToAsk = overrides?.question ?? question;
+      const contextToAsk = overrides?.context ?? context;
       const response = await fetch("/api/wisdom-advisor/ask", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          question,
-          context,
+          question: questionToAsk,
+          context: contextToAsk,
           accessCode,
         }),
       });
@@ -226,6 +235,12 @@ export function WisdomAdvisorStudio() {
     } finally {
       setAsking(false);
     }
+  }
+
+  async function handleClarificationPick(option: string) {
+    const nextContext = [context.trim(), `补充判断：${option}`].filter(Boolean).join("\n");
+    setContext(nextContext);
+    await submitAsk({ context: nextContext });
   }
 
   function useScenario(questionText: string, contextText: string) {
@@ -408,43 +423,72 @@ export function WisdomAdvisorStudio() {
                 <p>{answer.summary}</p>
               </article>
 
-              <div className="wisdom-brief-grid">
+              {answer.mode === "clarify" && answer.clarification ? (
                 <article className="insight-card wisdom-list-card">
                   <div className="wisdom-list-head">
-                    <p className="micro-label">先定判断</p>
-                    <span>这件事该怎么看</span>
+                    <p className="micro-label">顾问先追问一句</p>
+                    <span>补这一句后，判断会更准</span>
                   </div>
-                  <ul className="plain-list wisdom-bullet-list">
-                    {answer.principles.map((item) => (
-                      <li key={item}>{item}</li>
+                  <p className="wisdom-clarify-question">{answer.clarification.question}</p>
+                  <div className="wisdom-clarify-options">
+                    {answer.clarification.options.map((option) => (
+                      <button
+                        className="wisdom-clarify-button"
+                        disabled={asking}
+                        key={option}
+                        onClick={() => {
+                          void handleClarificationPick(option);
+                        }}
+                        type="button"
+                      >
+                        {option}
+                      </button>
                     ))}
-                  </ul>
-                </article>
-
-                <article className="insight-card wisdom-list-card">
-                  <div className="wisdom-list-head">
-                    <p className="micro-label">下一步动作</p>
-                    <span>先从哪里下手</span>
                   </div>
-                  <ul className="plain-list wisdom-bullet-list">
-                    {answer.actions.map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
                 </article>
-              </div>
+              ) : null}
 
-              <article className="insight-card caution-card wisdom-list-card">
-                <div className="wisdom-list-head">
-                  <p className="micro-label">尽量避免</p>
-                  <span>最容易搞坏的处理方式</span>
-                </div>
-                <ul className="plain-list wisdom-bullet-list">
-                  {answer.pitfalls.map((item) => (
-                    <li key={item}>{item}</li>
-                  ))}
-                </ul>
-              </article>
+              {answer.mode === "answer" ? (
+                <>
+                  <div className="wisdom-brief-grid">
+                    <article className="insight-card wisdom-list-card">
+                      <div className="wisdom-list-head">
+                        <p className="micro-label">先定判断</p>
+                        <span>这件事该怎么看</span>
+                      </div>
+                      <ul className="plain-list wisdom-bullet-list">
+                        {answer.principles.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    </article>
+
+                    <article className="insight-card wisdom-list-card">
+                      <div className="wisdom-list-head">
+                        <p className="micro-label">下一步动作</p>
+                        <span>先从哪里下手</span>
+                      </div>
+                      <ul className="plain-list wisdom-bullet-list">
+                        {answer.actions.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    </article>
+                  </div>
+
+                  <article className="insight-card caution-card wisdom-list-card">
+                    <div className="wisdom-list-head">
+                      <p className="micro-label">尽量避免</p>
+                      <span>最容易搞坏的处理方式</span>
+                    </div>
+                    <ul className="plain-list wisdom-bullet-list">
+                      {answer.pitfalls.map((item) => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ul>
+                  </article>
+                </>
+              ) : null}
 
               <details className="wisdom-evidence-wrap">
                 <summary>这次回答参考了哪些资料</summary>

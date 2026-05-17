@@ -27,12 +27,21 @@ export type AdviceEvidence = {
   tags: string[];
 };
 
+export type AdviceClarification = {
+  question: string;
+  reason: string;
+  options: string[];
+};
+
 export type AdviceResult = {
+  mode: "answer" | "clarify";
   situation: string;
   summary: string;
   principles: string[];
   actions: string[];
   pitfalls: string[];
+  confidence: number;
+  clarification: AdviceClarification | null;
   evidence: AdviceEvidence[];
   relatedSources: Array<{
     id: string;
@@ -56,6 +65,14 @@ type RankedEvidence = {
   source: KnowledgeSource;
   excerpt: string;
   score: number;
+};
+
+type QuestionAnalysis = {
+  primaryPlaybook: Playbook;
+  secondaryPlaybooks: Playbook[];
+  focusTerms: string[];
+  rawText: string;
+  ambiguitySignals: string[];
 };
 
 type ModelAdvicePayload = {
@@ -229,9 +246,10 @@ export async function buildAdvice(question: string, context = ""): Promise<Advic
   }
 
   const knowledgeBase = await loadKnowledgeBase();
-  const playbook = choosePlaybook(`${trimmedQuestion}\n${context}`);
-  const ranked = rankEvidence(knowledgeBase.sources, `${trimmedQuestion}\n${context}`);
+  const analysis = analyzeQuestion(trimmedQuestion, context);
+  const ranked = rankEvidence(knowledgeBase.sources, analysis);
   const evidence = pickEvidence(ranked, 6);
+  const confidence = estimateAdviceConfidence(trimmedQuestion, context, analysis, ranked, evidence);
   const visibleEvidence = evidence.slice(0, 3);
   const relatedSources = uniqueBySource(evidence).map((item) => ({
     id: item.source.id,
@@ -248,29 +266,66 @@ export async function buildAdvice(question: string, context = ""): Promise<Advic
     .map((item) => item.excerpt)
     .filter((excerpt) => !isQuestionLikeText(excerpt) && excerpt.length <= 64 && !excerpt.includes("http") && !excerpt.includes("www."));
 
+  const clarification = shouldAskClarifyingQuestion(trimmedQuestion, context, confidence, analysis, evidence)
+    ? buildClarification(analysis, trimmedQuestion, context)
+    : null;
+
+  if (clarification) {
+    const clarificationConfidence = Number(Math.min(confidence, 0.46).toFixed(2));
+    return {
+      mode: "clarify",
+      situation: `先补一个关键判断 · ${analysis.primaryPlaybook.label}`,
+      summary: clarification.reason,
+      principles: [],
+      actions: [],
+      pitfalls: [],
+      confidence: clarificationConfidence,
+      clarification,
+      evidence: visibleEvidence.map((item) => ({
+        sourceId: item.source.id,
+        sourceTitle: item.source.title,
+        sourceType: item.source.sourceType,
+        excerpt: item.excerpt,
+        score: Number(item.score.toFixed(2)),
+        tags: item.source.tags,
+      })),
+      relatedSources,
+    };
+  }
+
   const modelAdvice = await generateAdviceWithModel({
     question: trimmedQuestion,
     context,
-    playbook,
+    analysis,
     evidence,
+    confidence,
   }).catch(() => null);
 
   if (modelAdvice) {
     return {
+      mode: "answer",
       situation: modelAdvice.situation,
       summary: modelAdvice.summary,
       principles:
         modelAdvice.principles.length > 0
           ? modelAdvice.principles
-          : dedupeStrings([...playbook.principles, ...fallbackNotes]).slice(0, 4),
+          : dedupeStrings([...analysis.primaryPlaybook.principles, ...fallbackNotes]).slice(0, 4),
       actions:
         modelAdvice.actions.length > 0
           ? modelAdvice.actions
-          : dedupeStrings([...playbook.actions, ...fallbackActionEvidence.map((item) => toActionFromEvidence(item))]).slice(0, 4),
+          : dedupeStrings([
+              ...analysis.primaryPlaybook.actions,
+              ...fallbackActionEvidence.map((item) => toActionFromEvidence(item)),
+            ]).slice(0, 4),
       pitfalls:
         modelAdvice.pitfalls.length > 0
           ? modelAdvice.pitfalls
-          : dedupeStrings([...playbook.pitfalls, ...fallbackActionEvidence.map((item) => toPitfallFromEvidence(item))]).slice(0, 4),
+          : dedupeStrings([
+              ...analysis.primaryPlaybook.pitfalls,
+              ...fallbackActionEvidence.map((item) => toPitfallFromEvidence(item)),
+            ]).slice(0, 4),
+      confidence,
+      clarification: null,
       evidence: visibleEvidence.map((item) => ({
         sourceId: item.source.id,
         sourceTitle: item.source.title,
@@ -284,11 +339,20 @@ export async function buildAdvice(question: string, context = ""): Promise<Advic
   }
 
   return {
-    situation: playbook.label,
-    summary: buildSummary(playbook, visibleEvidence),
-    principles: dedupeStrings([...playbook.principles, ...fallbackNotes]).slice(0, 4),
-    actions: dedupeStrings([...playbook.actions, ...fallbackActionEvidence.map((item) => toActionFromEvidence(item))]).slice(0, 4),
-    pitfalls: dedupeStrings([...playbook.pitfalls, ...fallbackActionEvidence.map((item) => toPitfallFromEvidence(item))]).slice(0, 4),
+    mode: "answer",
+    situation: analysis.primaryPlaybook.label,
+    summary: buildSummary(analysis.primaryPlaybook, visibleEvidence),
+    principles: dedupeStrings([...analysis.primaryPlaybook.principles, ...fallbackNotes]).slice(0, 4),
+    actions: dedupeStrings([
+      ...analysis.primaryPlaybook.actions,
+      ...fallbackActionEvidence.map((item) => toActionFromEvidence(item)),
+    ]).slice(0, 4),
+    pitfalls: dedupeStrings([
+      ...analysis.primaryPlaybook.pitfalls,
+      ...fallbackActionEvidence.map((item) => toPitfallFromEvidence(item)),
+    ]).slice(0, 4),
+    confidence,
+    clarification: null,
     evidence: visibleEvidence.map((item) => ({
       sourceId: item.source.id,
       sourceTitle: item.source.title,
@@ -304,8 +368,9 @@ export async function buildAdvice(question: string, context = ""): Promise<Advic
 async function generateAdviceWithModel(input: {
   question: string;
   context: string;
-  playbook: Playbook;
+  analysis: QuestionAnalysis;
   evidence: RankedEvidence[];
+  confidence: number;
 }): Promise<AdviceResult | null> {
   const apiKey = process.env.DASHSCOPE_API_KEY?.trim();
   if (!apiKey) {
@@ -326,9 +391,11 @@ async function generateAdviceWithModel(input: {
   const systemPrompt = [
     "你是一个成熟、克制、见过很多真实场景的中文沟通与处事顾问。",
     "你的任务不是讲道理，也不是空泛安慰，而是基于给定证据做判断、定分寸、给动作。",
+    "把自己当成两个连续角色：先做策略分析师，挑最该抓的矛盾；再做顾问，把判断翻译成用户现在就能说和能做的话。",
     "优先吸收证据中的有效经验，再做适度综合，不要编造证据里完全没有的事实。",
     "表达风格要像真人顾问：稳、具体、不端着，不要像教科书，也不要复读用户问题。",
     "如果证据已经明显指向一个策略，要直接说重点，不要先铺很多空话。",
+    "如果用户真正卡住的是顾虑或关系风险，要正面回答那个顾虑，不要只给原则。",
     "principles 要写成判断，不要写成口号；actions 要写成此刻就能执行的动作；pitfalls 要写成最容易把事情搞坏的处理方式。",
     "输出必须是 JSON 对象，不要输出 Markdown 代码块，不要加解释。",
     "JSON 结构必须包含：situation, summary, principles, actions, pitfalls。",
@@ -340,8 +407,13 @@ async function generateAdviceWithModel(input: {
   const userPrompt = [
     `用户问题：${input.question}`,
     input.context ? `补充背景：${input.context}` : "补充背景：无",
-    `规则预判场景：${input.playbook.label}`,
-    `规则预判原则：${input.playbook.principles.join("；")}`,
+    `问题分型主判断：${input.analysis.primaryPlaybook.label}`,
+    input.analysis.secondaryPlaybooks.length
+      ? `次级可能场景：${input.analysis.secondaryPlaybooks.map((item) => item.label).join("、")}`
+      : "次级可能场景：无",
+    input.analysis.focusTerms.length ? `当前要抓的关键词：${input.analysis.focusTerms.join("、")}` : "当前要抓的关键词：无",
+    `规则预判原则：${input.analysis.primaryPlaybook.principles.join("；")}`,
+    `当前回答把握度：${Math.round(input.confidence * 100)}%`,
     "请综合以下检索证据，给出更像真人顾问的回答：",
     evidenceText || "暂无高相关证据，请基于问题谨慎作答。",
     "注意：不要出现“先沟通再表达”这类空泛套话；不要重复标题；如果用户问题里有明显顾虑，要正面回应那个顾虑。",
@@ -387,35 +459,45 @@ async function generateAdviceWithModel(input: {
     throw new Error("Qwen returned non-JSON advice.");
   }
 
-  return normalizeModelAdvice(parsed, input.playbook.label);
+  return normalizeModelAdvice(parsed, input.analysis.primaryPlaybook.label);
 }
 
-function choosePlaybook(text: string): Playbook {
-  const normalized = normalizeText(text);
-  let winner = PLAYBOOKS[PLAYBOOKS.length - 1];
-  let winnerScore = -1;
+function analyzeQuestion(question: string, context: string): QuestionAnalysis {
+  const rawText = `${question}\n${context}`.trim();
+  const normalized = normalizeText(rawText);
+  const scoredPlaybooks = PLAYBOOKS.map((playbook) => ({
+    playbook,
+    score: playbook.keywords.reduce((sum, keyword) => sum + (normalized.includes(keyword) ? 1.2 : 0), 0),
+  })).sort((left, right) => right.score - left.score);
 
-  for (const playbook of PLAYBOOKS) {
-    const score = playbook.keywords.reduce((sum, keyword) => sum + (normalized.includes(keyword) ? 1 : 0), 0);
-    if (score > winnerScore) {
-      winner = playbook;
-      winnerScore = score;
-    }
-  }
+  const primaryPlaybook = scoredPlaybooks[0]?.playbook ?? PLAYBOOKS[PLAYBOOKS.length - 1];
+  const secondaryPlaybooks = scoredPlaybooks
+    .filter((item) => item.playbook.label !== primaryPlaybook.label && item.score >= Math.max(1, (scoredPlaybooks[0]?.score ?? 0) - 0.8))
+    .slice(0, 2)
+    .map((item) => item.playbook);
 
-  return winner;
+  const focusTerms = extractFocusTerms(rawText, primaryPlaybook);
+  const ambiguitySignals = detectAmbiguitySignals(question, context);
+
+  return {
+    primaryPlaybook,
+    secondaryPlaybooks,
+    focusTerms,
+    rawText,
+    ambiguitySignals,
+  };
 }
 
-function rankEvidence(sources: KnowledgeSource[], text: string) {
+function rankEvidence(sources: KnowledgeSource[], analysis: QuestionAnalysis) {
   return sources
     .flatMap((source) =>
       source.passages.map((excerpt) => ({
         source,
         excerpt,
-        score: scorePassage(source, excerpt, text),
+        score: scorePassage(source, excerpt, analysis),
       }))
     )
-    .filter((item) => item.score > 0.08)
+    .filter((item) => item.score > 0.1)
     .sort((left, right) => right.score - left.score);
 }
 
@@ -448,14 +530,26 @@ function pickEvidence(items: RankedEvidence[], limit: number) {
   return picked;
 }
 
-function scorePassage(source: KnowledgeSource, excerpt: string, text: string) {
-  const questionTokens = buildSignals(text);
+function scorePassage(source: KnowledgeSource, excerpt: string, analysis: QuestionAnalysis) {
+  const questionTokens = buildSignals(analysis.rawText);
   const sourceTokens = buildSignals(`${source.title}\n${source.summary}\n${source.tags.join(" ")}\n${excerpt}`);
   const overlap = [...questionTokens].filter((token) => sourceTokens.has(token));
   const overlapScore = overlap.length / Math.max(questionTokens.size, 1);
   const titleBoost = overlap.some((token) => normalizeText(source.title).includes(token)) ? 0.16 : 0;
   const tagBoost = overlap.some((token) => source.tags.some((tag) => normalizeText(tag).includes(token))) ? 0.12 : 0;
-  return overlapScore + titleBoost + tagBoost;
+  const focusBoost = analysis.focusTerms.some((term) => normalizeText(`${source.title} ${source.summary} ${excerpt}`).includes(normalizeText(term)))
+    ? 0.16
+    : 0;
+  const playbookBoost = analysis.primaryPlaybook.keywords.some((keyword) => normalizeText(`${source.title} ${source.summary} ${excerpt}`).includes(normalizeText(keyword)))
+    ? 0.1
+    : 0;
+  const secondaryBoost = analysis.secondaryPlaybooks.some((playbook) =>
+    playbook.keywords.some((keyword) => normalizeText(`${source.title} ${source.summary} ${excerpt}`).includes(normalizeText(keyword)))
+  )
+    ? 0.05
+    : 0;
+  const questionPenalty = isQuestionLikeText(excerpt) ? 0.06 : 0;
+  return overlapScore + titleBoost + tagBoost + focusBoost + playbookBoost + secondaryBoost - questionPenalty;
 }
 
 function buildSignals(text: string) {
@@ -474,6 +568,39 @@ function buildSignals(text: string) {
     }
   }
 
+  return signals;
+}
+
+function extractFocusTerms(text: string, playbook: Playbook) {
+  const chunks = text
+    .split(/[\n，。、“”"'‘’！？!?,；;：:（）()\[\]【】]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  const longChinesePhrases = chunks
+    .filter((item) => /[\u4e00-\u9fff]/.test(item))
+    .filter((item) => item.length >= 3)
+    .slice(0, 8);
+
+  return dedupeStrings([...playbook.keywords.slice(0, 4), ...longChinesePhrases]).slice(0, 8);
+}
+
+function detectAmbiguitySignals(question: string, context: string) {
+  const signals: string[] = [];
+  const compactQuestion = question.replace(/\s+/g, "");
+  const compactContext = context.replace(/\s+/g, "");
+  if (compactQuestion.length < 16) {
+    signals.push("question_short");
+  }
+  if (!compactContext) {
+    signals.push("missing_context");
+  }
+  if (/怎么办[？?]?$/.test(compactQuestion) && compactQuestion.length < 24) {
+    signals.push("generic_ask");
+  }
+  if (/关系|结果|风险/.test(compactQuestion) && !/更怕|担心|不想|顾虑/.test(compactQuestion + compactContext)) {
+    signals.push("missing_priority");
+  }
   return signals;
 }
 
@@ -543,6 +670,131 @@ function uniqueBySource(items: Array<{ source: KnowledgeSource; excerpt: string;
   });
 }
 
+function estimateAdviceConfidence(
+  question: string,
+  context: string,
+  analysis: QuestionAnalysis,
+  ranked: RankedEvidence[],
+  evidence: RankedEvidence[]
+) {
+  const topScore = ranked[0]?.score ?? 0;
+  const secondScore = ranked[1]?.score ?? 0;
+  const strongFloor = Math.max(0.2, topScore * 0.72);
+  const strongCount = evidence.filter((item) => item.score >= strongFloor).length;
+  const focusHitCount = evidence.filter((item) =>
+    analysis.focusTerms.some((term) => normalizeText(`${item.source.title}${item.source.summary}${item.excerpt}`).includes(normalizeText(term)))
+  ).length;
+  const diversity = uniqueBySource(evidence).length;
+  const ambiguityPenalty = analysis.ambiguitySignals.length * 0.06;
+  const contextBoost = context.trim() ? 0.08 : 0;
+  const questionClarityBoost = question.trim().length >= 22 ? 0.06 : 0;
+  const secondSupportBoost = secondScore >= Math.max(0.16, topScore * 0.68) ? 0.06 : 0;
+
+  const score =
+    topScore * 0.58 +
+    Math.min(strongCount, 3) * 0.07 +
+    Math.min(focusHitCount, 3) * 0.05 +
+    Math.min(diversity, 3) * 0.03 +
+    contextBoost +
+    questionClarityBoost +
+    secondSupportBoost -
+    ambiguityPenalty;
+
+  return Math.max(0.12, Math.min(0.92, Number(score.toFixed(2))));
+}
+
+function shouldAskClarifyingQuestion(
+  question: string,
+  context: string,
+  confidence: number,
+  analysis: QuestionAnalysis,
+  evidence: RankedEvidence[]
+) {
+  if (analysis.ambiguitySignals.includes("generic_ask") && !context.trim()) {
+    return true;
+  }
+
+  if (evidence.length === 0) {
+    return true;
+  }
+
+  if (confidence < 0.5) {
+    return true;
+  }
+
+  if (analysis.ambiguitySignals.includes("missing_priority") && confidence < 0.64) {
+    return true;
+  }
+
+  if (analysis.ambiguitySignals.includes("missing_context") && question.trim().length < 24 && confidence < 0.68) {
+    return true;
+  }
+
+  return false;
+}
+
+function buildClarification(analysis: QuestionAnalysis, question: string, context: string): AdviceClarification {
+  if (analysis.ambiguitySignals.includes("generic_ask") && !context.trim()) {
+    return {
+      question: "你先补一句：这次你最怕失去什么，或者最想先保住什么？",
+      reason: "现在的问题还太泛，我能看出你在求建议，但还不知道你卡的是关系、结果，还是边界本身。",
+      options: ["先保住关系，别把话说僵", "先保住结果，把事情谈成", "先保住边界，不想再继续答应"],
+    };
+  }
+
+  const baseReason = analysis.ambiguitySignals.includes("missing_priority")
+    ? "我大致能判断你卡在分寸和结果之间，但还不知道你现在最想先保住哪一头。"
+    : "我能先看出大方向，但还缺一个关键判断点。补这一句后，建议会明显更准。";
+
+  const followUpMap: Record<string, AdviceClarification> = {
+    机会争取: {
+      question: "你这次最想优先守住哪一件事？",
+      reason: baseReason,
+      options: ["尽量把薪资谈高", "别把 offer 谈崩", "判断自己到底有没有筹码"],
+    },
+    边界表达: {
+      question: "你眼下最怕失去的是什么？",
+      reason: baseReason,
+      options: ["怕伤关系", "怕被觉得不好相处", "怕这次不答应以后更难拒绝"],
+    },
+    协作推进: {
+      question: "你这次最想先解决哪类卡点？",
+      reason: baseReason,
+      options: ["先把需求边界说清", "先让对方承诺时间点", "先把责任和拍板人对齐"],
+    },
+    关系经营: {
+      question: "你现在更想先修哪一头？",
+      reason: baseReason,
+      options: ["先把误会讲开", "先让关系别继续变僵", "先把自己的真实感受说出来"],
+    },
+    冲突缓和: {
+      question: "你现在最想先做到哪一步？",
+      reason: baseReason,
+      options: ["先别让冲突升级", "先把事实讲清楚", "先把自己的底线说出来"],
+    },
+    自我判断: {
+      question: "你这一题最缺的是哪类信息？",
+      reason: baseReason,
+      options: ["我其实知道想要什么，只是怕代价", "我连自己真正想要什么都没想清", "我需要先判断哪个风险更大"],
+    },
+  };
+
+  const chosen = followUpMap[analysis.primaryPlaybook.label] ?? {
+    question: "如果只能先补一句，你最想保住的是什么？",
+    reason: baseReason,
+    options: ["先保住关系", "先保住结果", "先保住自己的边界"],
+  };
+
+  if (!context.trim() && !chosen.options.some((item) => item.includes("补")) && question.trim().length < 20) {
+    return {
+      ...chosen,
+      options: dedupeStrings([...chosen.options, "先补一句背景：对方是谁、这事最晚什么时候要处理"]).slice(0, 4),
+    };
+  }
+
+  return chosen;
+}
+
 function buildSummary(playbook: Playbook, evidence: Array<{ source: KnowledgeSource; excerpt: string; score: number }>) {
   if (!evidence.length) {
     return `${playbook.summaryLead} 先按“目标、事实、边界、下一步”这条线整理你的表达，再回来判断细节。`;
@@ -570,11 +822,14 @@ function toPitfallFromEvidence(excerpt: string) {
 
 function normalizeModelAdvice(payload: ModelAdvicePayload, fallbackSituation: string): AdviceResult {
   return {
+    mode: "answer",
     situation: normalizeSentence(payload.situation, fallbackSituation),
     summary: normalizeSentence(payload.summary, "先按事实、边界和下一步来整理你的表达。"),
     principles: normalizeList(payload.principles, 4),
     actions: normalizeList(payload.actions, 4),
     pitfalls: normalizeList(payload.pitfalls, 4),
+    confidence: 0,
+    clarification: null,
     evidence: [],
     relatedSources: [],
   };
