@@ -197,6 +197,9 @@ export function WisdomAdvisorStudio() {
   }, [library]);
 
   const systemStatus = libraryError ? "知识库待修复" : "Qwen + 本地知识库已联动";
+  const hasConversation = conversation.length > 0;
+  const userTurns = conversation.filter((turn) => turn.role === "user");
+  const activeTopic = userTurns[0]?.question ?? "";
 
   async function handleAsk(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -308,6 +311,13 @@ export function WisdomAdvisorStudio() {
   function useScenario(questionText: string, contextText: string) {
     setQuestion(questionText);
     setContext(contextText);
+  }
+
+  function resetConversation() {
+    setConversation([]);
+    setAskError("");
+    setQuestion(QUICK_SCENARIOS[0].question);
+    setContext(QUICK_SCENARIOS[0].context);
   }
 
   function handleScenarioClick(event: MouseEvent<HTMLButtonElement>, questionText: string, contextText: string) {
@@ -535,6 +545,19 @@ export function WisdomAdvisorStudio() {
         </header>
 
         <section className="wisdom-thread" ref={answerRef}>
+          {hasConversation ? (
+            <section className="wisdom-thread-status" aria-label="当前对话状态">
+              <div>
+                <p className="micro-label">当前话题</p>
+                <strong>{activeTopic}</strong>
+                <span>已来回 {conversation.length} 条消息，这一轮会带着前面对话继续判断。</span>
+              </div>
+              <button className="wisdom-thread-reset" onClick={resetConversation} type="button">
+                开始新话题
+              </button>
+            </section>
+          ) : null}
+
           {conversation.length ? (
             conversation.map((turn, index) => {
               if (turn.role === "user") {
@@ -586,15 +609,15 @@ export function WisdomAdvisorStudio() {
             <div className="chat-bubble-head">
               <div className="chat-avatar">你</div>
               <div>
-                <p className="micro-label">现在就开始咨询</p>
-                <strong>把你卡住的那句话先说出来</strong>
+                <p className="micro-label">{hasConversation ? "继续往下说" : "现在就开始咨询"}</p>
+                <strong>{hasConversation ? "补一句新的顾虑、变化，或者对方刚刚的反应" : "把你卡住的那句话先说出来"}</strong>
               </div>
             </div>
 
             <form className="stack-form chat-composer" onSubmit={handleAsk}>
               <div className="wisdom-composer-hints" aria-label="提问提示">
-                <span>先说你最卡的点</span>
-                <span>补一句你最怕失去什么</span>
+                <span>{hasConversation ? "先补新变化" : "先说你最卡的点"}</span>
+                <span>{hasConversation ? "再说你更怕失去什么" : "补一句你最怕失去什么"}</span>
               </div>
 
               <label className="field">
@@ -602,7 +625,11 @@ export function WisdomAdvisorStudio() {
                 <textarea
                   name="question"
                   onChange={(event) => setQuestion(event.target.value)}
-                  placeholder="例如：我不想把关系弄僵，但这件事我真的不想再答应了，该怎么说？"
+                  placeholder={
+                    hasConversation
+                      ? "例如：如果他当场反驳我，说我太敏感了，我接下来该怎么回？"
+                      : "例如：我不想把关系弄僵，但这件事我真的不想再答应了，该怎么说？"
+                  }
                   rows={4}
                   required
                   value={question}
@@ -614,7 +641,11 @@ export function WisdomAdvisorStudio() {
                 <textarea
                   name="context"
                   onChange={(event) => setContext(event.target.value)}
-                  placeholder="例如：对方是合作很久的同事，这周就要交付，我不想因为一次沟通把关系搞坏。"
+                  placeholder={
+                    hasConversation
+                      ? "例如：对方刚才已经有点不高兴了，但我还是不想退回原来的做法。"
+                      : "例如：对方是合作很久的同事，这周就要交付，我不想因为一次沟通把关系搞坏。"
+                  }
                   rows={3}
                   value={context}
                 />
@@ -669,9 +700,13 @@ export function WisdomAdvisorStudio() {
                   }}
                   type="button"
                 >
-                  {asking ? "顾问正在整理判断..." : "生成顾问建议"}
+                  {asking ? "顾问正在整理判断..." : hasConversation ? "继续这一轮对话" : "生成顾问建议"}
                 </button>
-                <p>不用把前因后果全讲完，只要先把你最难开口的那一点说出来就够了。</p>
+                <p>
+                  {hasConversation
+                    ? "不用重复前因后果，只补这一轮最关键的新信息，它会带着上文继续判断。"
+                    : "不用把前因后果全讲完，只要先把你最难开口的那一点说出来就够了。"}
+                </p>
               </div>
               {askError ? <p className="error-text">{askError}</p> : null}
             </form>

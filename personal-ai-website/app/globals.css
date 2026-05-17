@@ -886,6 +886,60 @@ h3 {
   position: relative;
 }
 
+.wisdom-thread-status {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  border: 1px solid rgba(79, 50, 36, 0.1);
+  border-radius: 22px;
+  background: rgba(255, 252, 248, 0.84);
+  position: relative;
+  z-index: 1;
+}
+
+.wisdom-thread-status > div {
+  display: grid;
+  gap: 4px;
+}
+
+.wisdom-thread-status strong {
+  color: var(--wisdom-ink);
+  font-size: 0.98rem;
+  line-height: 1.5;
+}
+
+.wisdom-thread-status span {
+  color: var(--wisdom-fog);
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.wisdom-thread-reset {
+  border: 1px solid rgba(79, 50, 36, 0.12);
+  border-radius: 999px;
+  padding: 9px 14px;
+  background: rgba(255, 251, 246, 0.94);
+  color: var(--wisdom-russet-deep);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.wisdom-thread-reset:hover {
+  transform: translateY(-1px);
+  border-color: rgba(125, 63, 41, 0.24);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 12px 24px rgba(69, 40, 24, 0.08);
+}
+
 .wisdom-thread::before {
   content: "";
   position: absolute;
@@ -919,6 +973,7 @@ h3 {
   background:
     radial-gradient(circle at top right, rgba(219, 149, 96, 0.1), transparent 14rem),
     linear-gradient(180deg, rgba(255, 250, 245, 0.94), rgba(250, 244, 237, 0.9));
+  opacity: 0.96;
 }
 
 .chat-bubble-advisor {
@@ -1557,7 +1612,8 @@ h3 {
   }
 
   .wisdom-chat-header,
-  .chat-composer-footer {
+  .chat-composer-footer,
+  .wisdom-thread-status {
     flex-direction: column;
     align-items: flex-start;
   }
