@@ -1,0 +1,101 @@
+{
+  "scene_contract_version": "1.1",
+  "episode": {
+    "title": "纳瓦尔宝典-学会销售学会构建",
+    "topic": "学会销售，学会构建",
+    "target_duration_seconds": 105,
+    "core_memory_sentence": "只会做，是产能；只会卖，是承诺；能卖也能做，才是资产。"
+  },
+  "global_rules": {
+    "tone": "锋利、克制、具体",
+    "visual_style": "深色编辑部档案风，像能力诊断报告",
+    "voice_style": "Yunxi，冷静、可信、有轻微私人感",
+    "subtitle_rule": "关键句必须可静音观看，案例数字必须烧录"
+  },
+  "scenes": [
+    {
+      "scene_id": "S01",
+      "role": "hook",
+      "narration_text": "你做了两周产品，最后零个付费。你会以为，是功能不够强。于是调模型、改页面、加图表。但问题可能不在构建。而在你没有销售。",
+      "expected_duration": 13,
+      "scene_energy": 5,
+      "retention_goal": "用强现实冲突拉住人，让技术/产品观众意识到问题不是继续加功能。",
+      "key_numbers": ["两周", "0 付费"],
+      "visual_goal": "用强现实冲突抓住观众，让问题从功能不足转向需求未验证。",
+      "emphasis_words": ["两周产品", "0 付费", "没有销售"],
+      "subtitle_priority": ["两周产品，0 付费", "问题可能不在构建"],
+      "voice_notes": "第一句克制但要有落差；第 4 句后留停顿。",
+      "handoff_notes": "开头不要引用纳瓦尔，先给现实冲突。"
+    },
+    {
+      "scene_id": "S02",
+      "role": "principle",
+      "narration_text": "销售不是忽悠买单。它是发现真实需求。构建也不是躲起来做功能。它是兑现真实承诺。纳瓦尔说，要学会销售，也要学会构建。因为只会其中一个。你都只拥有半条价值链。",
+      "expected_duration": 18,
+      "scene_energy": 3,
+      "retention_goal": "建立信任，把纳瓦尔原则翻译成观众能理解的价值链判断。",
+      "key_numbers": [],
+      "visual_goal": "把销售和构建重新定义为完整价值链的两半。",
+      "emphasis_words": ["真实需求", "真实承诺", "半条价值链"],
+      "subtitle_priority": ["销售是发现真实需求", "构建是兑现真实承诺", "半条价值链"],
+      "voice_notes": "定义句要有停顿，避免像概念堆叠。",
+      "handoff_notes": "画面应出现左右两侧能力卡：发现需求 / 兑现承诺。"
+    },
+    {
+      "scene_id": "S03",
+      "role": "left_case",
+      "narration_text": "小林，二十九岁工程师。他用 AI 做了一个简历诊断产品。两周上线，有评分、有建议、有图表。结果只有十七个访问。零个付费。他以为功能不够。于是继续开发。",
+      "expected_duration": 20,
+      "scene_energy": 4,
+      "retention_goal": "给出失败证据，让观众看到只会构建的代价。",
+      "key_numbers": ["29 岁", "两周", "17 个访问", "0 个付费"],
+      "visual_goal": "呈现只会构建的路径：功能越来越多，付费仍然为零。",
+      "emphasis_words": ["AI 简历诊断", "17 个访问", "0 个付费"],
+      "subtitle_priority": ["17 个访问", "0 个付费"],
+      "voice_notes": "17 和 0 要读清楚，形成数字落差。",
+      "handoff_notes": "左栏需要保留产品后台、评分图表和 0 付费证据。"
+    },
+    {
+      "scene_id": "S04",
+      "role": "right_case",
+      "narration_text": "但他的同事先没写代码。只做了一个飞书表单。他约了二十个求职者聊简历。收九十九元，做人工诊断。先卖出十单。再把三类高频问题产品化。",
+      "expected_duration": 18,
+      "scene_energy": 4,
+      "retention_goal": "用对照证据证明先卖问题再构建答案更稳。",
+      "key_numbers": ["20 个求职者", "99 元", "10 单", "三类问题"],
+      "visual_goal": "呈现销售加构建的路径：先验证付费，再产品化。",
+      "emphasis_words": ["飞书表单", "99 元", "10 单", "产品化"],
+      "subtitle_priority": ["99 元人工诊断", "先卖出 10 单"],
+      "voice_notes": "不要读成炫耀案例，要像诊断对照。",
+      "handoff_notes": "右栏必须和左栏形成同屏对照，突出先卖问题。"
+    },
+    {
+      "scene_id": "S05",
+      "role": "diagnosis",
+      "narration_text": "差距不在谁更会包装。而在谁先确认。别人愿意为问题付出代价。小林会构建。但还没有销售。同事先卖问题。再构建答案。所以，别急着问。我还能加什么功能。先问，谁正为它付出时间、钱，或机会成本。",
+      "expected_duration": 19,
+      "scene_energy": 5,
+      "retention_goal": "把案例压成诊断金句，制造记忆点和纠偏感。",
+      "key_numbers": [],
+      "visual_goal": "把案例抽象为判断：先找代价，再加功能。",
+      "emphasis_words": ["先确认", "付出代价", "先卖问题", "再构建答案"],
+      "subtitle_priority": ["先确认代价", "先卖问题，再构建答案"],
+      "voice_notes": "第 35 句较长，字幕和口播都要拆拍。",
+      "handoff_notes": "画面可使用诊断卡片，不要新增概念。"
+    },
+    {
+      "scene_id": "S06",
+      "role": "action_outro",
+      "narration_text": "今天就做一个小动作。选一个你已经会的能力。写下十个可能有痛点的人。联系其中三个。问他们上一次付出了什么。在得到真实回答前。不新增功能。不买课。不重做作品集。只会做，是产能。只会卖，是承诺。能卖也能做，才是资产。你现在做的东西，已经有人为它付出代价了吗？",
+      "expected_duration": 17,
+      "scene_energy": 3,
+      "retention_goal": "让观众截图行动清单，并用记忆句完成转述。",
+      "key_numbers": ["10 人", "3 人"],
+      "visual_goal": "给出可截图行动清单，并用记忆句收束。",
+      "emphasis_words": ["列 10 人", "联系 3 人", "不新增功能", "资产"],
+      "subtitle_priority": ["列 10 人 / 联系 3 人", "能卖也能做，才是资产"],
+      "voice_notes": "结尾记忆句要留停顿，不要变成口号。",
+      "handoff_notes": "结尾只保留一个反问，不要视觉和字幕重复太多。"
+    }
+  ]
+}

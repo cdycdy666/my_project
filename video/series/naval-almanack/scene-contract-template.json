@@ -1,0 +1,38 @@
+{
+  "scene_contract_version": "1.2",
+  "episode": {
+    "title": "",
+    "topic": "",
+    "target_duration_seconds": 0,
+    "core_memory_sentence": ""
+  },
+  "global_rules": {
+    "tone": "锋利、克制、具体",
+    "visual_style": "深色编辑部档案风",
+    "voice_style": "冷静、可信、有轻微私人感",
+    "subtitle_rule": "关键句必须可静音观看",
+    "continuity_rule": "任何新时间、新数字、新结果、新概念必须有前文铺垫或明确用途",
+    "script_rule": "每个 scene 必须有明确叙事功能、观众状态变化和下游可执行信息"
+  },
+  "scenes": [
+    {
+      "scene_id": "S01",
+      "role": "hook",
+      "narration_text": "",
+      "expected_duration": 0,
+      "scene_energy": 5,
+      "retention_goal": "",
+      "viewer_state_before": "",
+      "viewer_state_after": "",
+      "key_numbers": [],
+      "visual_goal": "",
+      "visual_proof": "",
+      "screen_text": [],
+      "emphasis_words": [],
+      "subtitle_priority": [],
+      "voice_notes": "",
+      "continuity_notes": "",
+      "handoff_notes": ""
+    }
+  ]
+}

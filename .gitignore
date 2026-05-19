@@ -1,6 +1,12 @@
 .DS_Store
 Thumbs.db
 
+__pycache__/
+.pycache/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
 node_modules/
 dist/
 build/
@@ -16,3 +22,11 @@ pnpm-debug.log*
 .env
 .env.*
 !.env.example
+
+*.zip
+*.tar.gz
+*.tgz
+
+typescript
+7.得到锦囊/
+万维钢·现代思维工具100讲/

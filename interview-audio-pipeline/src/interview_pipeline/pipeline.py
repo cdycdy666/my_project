@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import re
+import tempfile
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from .bos_storage import BosStorageClient
 from .config import AppSettings, load_settings
@@ -14,6 +16,7 @@ from .formatter import (
     build_page_markdown,
     build_structured_assessment,
 )
+from .http import HttpClient
 from .local_whisper import LocalWhisperTranscriptionService
 from .models import InterviewInput, MediaInsightResult, StructuredAssessment
 from .notion_client import NotionClient
@@ -149,8 +152,37 @@ def run_transcription(*, settings: AppSettings, interview: InterviewInput, audio
         media_service = DoubaoMiaojiService(settings.doubao_miaoji)
         return media_service.run(interview)
     if provider == "local_whisper":
-        if not audio_file:
-            raise RuntimeError("TRANSCRIPTION_PROVIDER=local_whisper requires an audio_file.")
+        cleanup_path: Path | None = None
+        local_audio_file = audio_file
+        if not local_audio_file:
+            if not interview.audio_url:
+                raise RuntimeError("TRANSCRIPTION_PROVIDER=local_whisper requires an audio_file or audio_url.")
+            cleanup_path = _download_audio_to_tempfile(
+                interview.audio_url,
+                disable_proxy=settings.bos.disable_proxy if settings.bos else False,
+            )
+            local_audio_file = str(cleanup_path)
         media_service = LocalWhisperTranscriptionService(settings.local_whisper)
-        return media_service.run(audio_file)
+        try:
+            return media_service.run(local_audio_file)
+        finally:
+            if cleanup_path is not None:
+                cleanup_path.unlink(missing_ok=True)
     raise RuntimeError(f"Unsupported transcription provider: {provider}")
+
+
+def _download_audio_to_tempfile(audio_url: str, *, disable_proxy: bool) -> Path:
+    client = HttpClient()
+    status, _headers, payload = client.request(
+        "GET",
+        audio_url,
+        disable_proxy=disable_proxy,
+        timeout=300,
+    )
+    if status >= 400:
+        raise RuntimeError(f"Failed to download remote audio for local_whisper: HTTP {status}")
+
+    suffix = Path(urlparse(audio_url).path).suffix or ".bin"
+    with tempfile.NamedTemporaryFile(prefix="local-whisper-url-", suffix=suffix, delete=False) as handle:
+        handle.write(payload)
+        return Path(handle.name)

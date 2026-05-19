@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>叙事审计｜实用思维工具</title>
+  </head>
+  <body>
+    <div id="thinking-tool-template" data-composition-id="thinking-tool-template" data-start="0" data-duration="246" data-width="1080" data-height="1920">
+      <div class="canvas" data-layout-allow-overflow>
+        <div class="paper-grain" data-layout-ignore></div>
+        <div class="ledger-grid" data-layout-ignore></div>
+        <div class="signal signal-a" data-layout-ignore></div>
+        <div class="signal signal-b" data-layout-ignore></div>
+        <div class="signal signal-c" data-layout-ignore></div>
+
+        <div class="series-chrome">
+          <span class="js-series-title"></span>
+          <span class="js-episode-label"></span>
+        </div>
+        <div class="progress-track"><div class="progress-fill"></div></div>
+        <div class="theme-badge js-theme-badge"></div>
+
+        <section class="scene scene-hero">
+          <p class="eyebrow js-hero-eyebrow"></p>
+          <h1 class="hero-title js-hero-headline"></h1>
+          <div class="redline js-hero-strike"></div>
+          <p class="hero-subline js-hero-subline"></p>
+          <div class="audit-snapshot" data-layout-allow-overflow>
+            <div class="window-bar">
+              <span class="js-window-label"></span>
+              <i></i>
+            </div>
+            <div class="metric-grid js-hero-metrics"></div>
+            <div class="chart-panel" aria-hidden="true">
+              <div class="chart-line line-a"></div>
+              <div class="chart-line line-b"></div>
+              <div class="chart-line line-c"></div>
+              <span class="chart-dot dot-a"></span>
+              <span class="chart-dot dot-b"></span>
+            </div>
+          </div>
+        </section>
+
+        <section class="scene scene-principle">
+          <div class="principle-card">
+            <p class="principle-number js-principle-number"></p>
+            <p class="eyebrow js-principle-label"></p>
+            <h2 class="principle-title js-principle-title"></h2>
+            <p class="principle-copy js-principle-copy"></p>
+            <div class="value-chain js-principle-links"></div>
+            <div class="half-chain js-principle-footer"></div>
+          </div>
+        </section>
+
+        <section class="scene scene-case">
+          <p class="eyebrow js-case-kicker"></p>
+          <h2 class="section-title js-case-title"></h2>
+          <div class="case-board">
+            <div class="case-column weak">
+              <div class="column-top">
+                <p class="column-label js-case-left-label"></p>
+                <span class="column-meta js-case-left-meta"></span>
+              </div>
+              <div class="mock-panel story-mock" aria-hidden="true">
+                <div class="mock-row">
+                  <span class="js-old-story-label"></span>
+                  <b class="js-old-story-value"></b>
+                </div>
+                <div class="mock-score js-old-story-score"></div>
+                <div class="mock-bars"><i></i><i></i><i></i></div>
+              </div>
+              <div class="flow-list js-case-left-flow"></div>
+            </div>
+            <div class="case-column strong">
+              <div class="column-top">
+                <p class="column-label js-case-right-label"></p>
+                <span class="column-meta js-case-right-meta"></span>
+              </div>
+              <div class="mock-panel audit-mock" aria-hidden="true">
+                <div class="form-line wide"></div>
+                <div class="form-line"></div>
+                <div class="order-stamp js-audit-stamp"></div>
+              </div>
+              <div class="flow-list js-case-right-flow"></div>
+            </div>
+          </div>
+          <p class="case-insight js-case-insight"></p>
+        </section>
+
+        <section class="scene scene-diagnosis">
+          <p class="eyebrow js-diagnosis-kicker"></p>
+          <h2 class="section-title js-diagnosis-title"></h2>
+          <div class="diagnosis-stack js-diagnosis-cards"></div>
+        </section>
+
+        <section class="scene scene-action">
+          <p class="eyebrow js-action-kicker"></p>
+          <h2 class="section-title js-action-title"></h2>
+          <ol class="action-list js-action-items"></ol>
+          <p class="action-caption js-action-caption"></p>
+        </section>
+
+        <section class="scene scene-outro">
+          <div class="memory-card">
+            <p class="eyebrow js-outro-kicker"></p>
+            <h2 class="memory-line js-outro-title"></h2>
+          </div>
+          <p class="footer-note js-outro-footer"></p>
+        </section>
+
+        <div class="caption-layer js-captions" data-layout-allow-overflow></div>
+      </div>
+
+      <style>
+        :root {
+          color-scheme: dark;
+        }
+
+        html,
+        body {
+          margin: 0;
+          width: 1080px;
+          height: 1920px;
+          overflow: hidden;
+          background: #07090f;
+        }
+
+        #thinking-tool-template {
+          position: relative;
+          width: 1080px;
+          height: 1920px;
+          overflow: hidden;
+          background:
+            radial-gradient(circle at 16% 12%, rgba(231, 169, 61, 0.24), transparent 30%),
+            radial-gradient(circle at 84% 26%, rgba(142, 167, 180, 0.18), transparent 28%),
+            radial-gradient(circle at 70% 82%, rgba(199, 100, 59, 0.22), transparent 34%),
+            linear-gradient(180deg, #07090f 0%, #0d1420 52%, #080a10 100%);
+          color: #efe2c7;
+          font-family: "Noto Sans SC", "PingFang SC", sans-serif;
+        }
+
+        .canvas,
+        .paper-grain,
+        .ledger-grid,
+        .scene {
+          position: absolute;
+          inset: 0;
+        }
+
+        .paper-grain {
+          opacity: 0.12;
+          background-image:
+            linear-gradient(115deg, rgba(239, 226, 199, 0.09), transparent 42%),
+            repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 7px);
+          mix-blend-mode: overlay;
+        }
+
+        .ledger-grid {
+          opacity: 0.22;
+          background-image:
+            linear-gradient(rgba(239, 226, 199, 0.08) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(239, 226, 199, 0.07) 1px, transparent 1px);
+          background-size: 90px 90px;
+          mask-image: linear-gradient(180deg, transparent 0%, #000 16%, #000 84%, transparent 100%);
+        }
+
+        .signal {
+          position: absolute;
+          border-radius: 999px;
+          filter: blur(36px);
+          opacity: 0.72;
+        }
+
+        .signal-a {
+          left: -110px;
+          top: 220px;
+          width: 380px;
+          height: 380px;
+          background: rgba(231, 169, 61, 0.34);
+        }
+
+        .signal-b {
+          right: -150px;
+          bottom: 300px;
+          width: 460px;
+          height: 460px;
+          background: rgba(199, 100, 59, 0.22);
+        }
+
+        .signal-c {
+          left: 410px;
+          bottom: -160px;
+          width: 340px;
+          height: 340px;
+          background: rgba(142, 167, 180, 0.16);
+        }
+
+        .series-chrome {
+          position: absolute;
+          top: 48px;
+          left: 64px;
+          right: 64px;
+          z-index: 30;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          color: rgba(239, 226, 199, 0.58);
+          font-size: 18px;
+          line-height: 1;
+          letter-spacing: 0.2em;
+          text-transform: uppercase;
+        }
+
+        .progress-track {
+          position: absolute;
+          top: 86px;
+          left: 64px;
+          right: 64px;
+          z-index: 30;
+          height: 2px;
+          background: rgba(239, 226, 199, 0.12);
+        }
+
+        .progress-fill {
+          width: 100%;
+          height: 100%;
+          transform: scaleX(0);
+          transform-origin: left center;
+          background: linear-gradient(90deg, #e7a93d, #f3d097);
+          box-shadow: 0 0 18px rgba(231, 169, 61, 0.38);
+        }
+
+        .theme-badge {
+          position: absolute;
+          top: 108px;
+          left: 64px;
+          z-index: 30;
+          padding: 9px 14px 10px;
+          border: 1px solid rgba(231, 169, 61, 0.22);
+          border-radius: 999px;
+          color: rgba(243, 208, 151, 0.76);
+          font-size: 14px;
+          letter-spacing: 0.22em;
+        }
+
+        .scene {
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          padding: 132px 76px 248px;
+          box-sizing: border-box;
+          opacity: 0;
+        }
+
+        .eyebrow,
+        .footer-note,
+        .principle-number,
+        .column-label {
+          margin: 0;
+          font-size: 22px;
+          line-height: 1.35;
+          letter-spacing: 0.18em;
+          text-transform: uppercase;
+          color: rgba(239, 226, 199, 0.66);
+        }
+
+        .hero-title,
+        .section-title,
+        .principle-title,
+        .memory-line {
+          margin: 0;
+          font-family: "Noto Serif SC", "Songti SC", serif;
+          font-weight: 700;
+          letter-spacing: -0.045em;
+        }
+
+        .hero-title {
+          margin-top: 32px;
+          font-size: 118px;
+          line-height: 1.02;
+        }
+
+        .hero-title span,
+        .principle-title span,
+        .memory-line span {
+          display: block;
+        }
+
+        .hero-title .muted,
+        .principle-title .muted,
+        .memory-line .muted {
+          color: rgba(239, 226, 199, 0.76);
+        }
+
+        .hero-title .hot,
+        .principle-title .hot,
+        .memory-line .hot {
+          color: #e7a93d;
+          text-shadow: 0 0 34px rgba(231, 169, 61, 0.22);
+        }
+
+        .redline {
+          width: fit-content;
+          margin-top: 34px;
+          padding: 18px 26px;
+          border: 1px solid rgba(199, 100, 59, 0.55);
+          border-radius: 999px;
+          color: #f5c28b;
+          font-size: 34px;
+          line-height: 1.25;
+          background: rgba(199, 100, 59, 0.1);
+          box-shadow: 0 0 38px rgba(199, 100, 59, 0.14);
+        }
+
+        .hero-subline,
+        .principle-copy,
+        .case-insight,
+        .action-caption {
+          margin: 30px 0 0;
+          max-width: 860px;
+          font-size: 37px;
+          line-height: 1.55;
+          color: rgba(239, 226, 199, 0.76);
+        }
+
+        .audit-snapshot {
+          width: 100%;
+          margin-top: 42px;
+          padding: 24px;
+          border: 1px solid rgba(239, 226, 199, 0.13);
+          border-radius: 34px;
+          background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.025)),
+            rgba(16, 23, 34, 0.82);
+          box-shadow: 0 30px 90px rgba(0, 0, 0, 0.3);
+          backdrop-filter: blur(18px);
+        }
+
+        .window-bar {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          color: rgba(239, 226, 199, 0.52);
+          font-size: 17px;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+        }
+
+        .window-bar i {
+          width: 72px;
+          height: 10px;
+          border-radius: 999px;
+          background: linear-gradient(90deg, #c7643b, #e7a93d);
+          opacity: 0.76;
+        }
+
+        .metric-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 14px;
+          margin-top: 22px;
+        }
+
+        .metric-card {
+          min-height: 112px;
+          padding: 20px 18px;
+          border-radius: 24px;
+          background: rgba(239, 226, 199, 0.06);
+          border: 1px solid rgba(239, 226, 199, 0.1);
+        }
+
+        .metric-label {
+          display: block;
+          color: rgba(239, 226, 199, 0.52);
+          font-size: 15px;
+          letter-spacing: 0.18em;
+        }
+
+        .metric-value {
+          display: block;
+          margin-top: 16px;
+          color: #ffe1a4;
+          font-size: 42px;
+          line-height: 1;
+          font-weight: 800;
+        }
+
+        .metric-card:last-child .metric-value {
+          color: #f2936b;
+        }
+
+        .chart-panel {
+          position: relative;
+          height: 120px;
+          margin-top: 20px;
+          overflow: hidden;
+          border-radius: 24px;
+          background: rgba(7, 9, 15, 0.4);
+          border: 1px solid rgba(239, 226, 199, 0.08);
+        }
+
+        .chart-line {
+          position: absolute;
+          left: 28px;
+          right: 28px;
+          height: 2px;
+          background: rgba(239, 226, 199, 0.13);
+        }
+
+        .line-a { top: 28px; }
+        .line-b { top: 62px; }
+        .line-c { top: 96px; }
+
+        .chart-dot {
+          position: absolute;
+          width: 16px;
+          height: 16px;
+          border-radius: 50%;
+          background: #c7643b;
+          box-shadow: 0 0 18px rgba(199, 100, 59, 0.46);
+        }
+
+        .dot-a {
+          left: 66%;
+          top: 54px;
+        }
+
+        .dot-b {
+          left: 82%;
+          top: 88px;
+          background: #e7a93d;
+        }
+
+        .principle-card,
+        .case-column,
+        .diagnosis-card,
+        .memory-card {
+          border: 1px solid rgba(239, 226, 199, 0.13);
+          background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.025)),
+            rgba(16, 23, 34, 0.84);
+          box-shadow: 0 30px 90px rgba(0, 0, 0, 0.32);
+          backdrop-filter: blur(18px);
+        }
+
+        .principle-card {
+          padding: 72px 62px;
+          border-radius: 48px;
+        }
+
+        .principle-number {
+          color: #e7a93d;
+        }
+
+        .principle-title {
+          margin-top: 24px;
+          font-size: 72px;
+          line-height: 1.12;
+        }
+
+        .value-chain {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 20px;
+          margin-top: 40px;
+        }
+
+        .chain-card {
+          min-height: 180px;
+          padding: 28px;
+          border-radius: 30px;
+          border: 1px solid rgba(231, 169, 61, 0.24);
+          background: rgba(231, 169, 61, 0.08);
+        }
+
+        .chain-label {
+          display: block;
+          color: #e7a93d;
+          font-size: 18px;
+          letter-spacing: 0.22em;
+        }
+
+        .chain-card h3 {
+          margin: 18px 0 0;
+          font-size: 40px;
+          line-height: 1.12;
+          color: #ffe1a4;
+        }
+
+        .chain-card p {
+          margin: 14px 0 0;
+          font-size: 27px;
+          line-height: 1.42;
+          color: rgba(239, 226, 199, 0.72);
+        }
+
+        .half-chain {
+          margin-top: 26px;
+          padding-top: 22px;
+          border-top: 1px solid rgba(239, 226, 199, 0.1);
+          color: rgba(239, 226, 199, 0.45);
+          font-size: 17px;
+          letter-spacing: 0.22em;
+        }
+
+        .section-title {
+          margin-top: 26px;
+          font-size: 68px;
+          line-height: 1.12;
+        }
+
+        .case-board {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 22px;
+          margin-top: 42px;
+        }
+
+        .case-column {
+          min-height: 660px;
+          padding: 30px 26px;
+          border-radius: 36px;
+        }
+
+        .case-column.weak {
+          border-color: rgba(199, 100, 59, 0.3);
+        }
+
+        .case-column.strong {
+          border-color: rgba(231, 169, 61, 0.4);
+        }
+
+        .column-top {
+          display: flex;
+          justify-content: space-between;
+          gap: 16px;
+          align-items: center;
+        }
+
+        .column-meta {
+          padding: 8px 12px;
+          border-radius: 999px;
+          background: rgba(239, 226, 199, 0.07);
+          color: rgba(239, 226, 199, 0.58);
+          font-size: 18px;
+          white-space: nowrap;
+        }
+
+        .mock-panel {
+          min-height: 150px;
+          margin-top: 24px;
+          padding: 22px;
+          border-radius: 26px;
+          background: rgba(7, 9, 15, 0.42);
+          border: 1px solid rgba(239, 226, 199, 0.08);
+        }
+
+        .mock-row {
+          display: flex;
+          justify-content: space-between;
+          color: rgba(239, 226, 199, 0.54);
+          font-size: 18px;
+          letter-spacing: 0.16em;
+        }
+
+        .mock-score {
+          margin-top: 16px;
+          color: #f2936b;
+          font-size: 66px;
+          line-height: 1;
+          font-weight: 800;
+        }
+
+        .mock-bars {
+          display: grid;
+          gap: 8px;
+          margin-top: 18px;
+        }
+
+        .mock-bars i,
+        .form-line {
+          display: block;
+          height: 10px;
+          border-radius: 999px;
+          background: rgba(239, 226, 199, 0.16);
+        }
+
+        .mock-bars i:nth-child(1) { width: 82%; }
+        .mock-bars i:nth-child(2) { width: 56%; }
+        .mock-bars i:nth-child(3) { width: 36%; background: rgba(199, 100, 59, 0.38); }
+
+        .audit-mock {
+          position: relative;
+          display: grid;
+          align-content: start;
+          gap: 16px;
+        }
+
+        .form-line {
+          width: 70%;
+          background: rgba(231, 169, 61, 0.24);
+        }
+
+        .form-line.wide {
+          width: 92%;
+        }
+
+        .order-stamp {
+          width: fit-content;
+          margin-top: 8px;
+          padding: 14px 18px;
+          border-radius: 18px;
+          color: #101722;
+          background: #e7a93d;
+          font-size: 24px;
+          font-weight: 800;
+          letter-spacing: 0.08em;
+        }
+
+        .flow-list {
+          display: grid;
+          gap: 14px;
+          margin-top: 22px;
+        }
+
+        .flow-item {
+          position: relative;
+          padding: 20px 18px;
+          border-radius: 22px;
+          background: rgba(239, 226, 199, 0.06);
+          font-size: 31px;
+          line-height: 1.18;
+          color: rgba(239, 226, 199, 0.86);
+        }
+
+        .case-column.strong .flow-item {
+          color: #ffe1a4;
+          background: rgba(231, 169, 61, 0.1);
+        }
+
+        .case-column.weak .flow-item:last-child {
+          color: #f2936b;
+          background: rgba(199, 100, 59, 0.13);
+        }
+
+        .case-insight {
+          margin-top: 30px;
+          padding: 22px 26px;
+          max-width: none;
+          border-left: 4px solid #e7a93d;
+          border-radius: 20px;
+          background: rgba(231, 169, 61, 0.08);
+          color: #ffe1a4;
+          font-size: 34px;
+        }
+
+        .diagnosis-stack {
+          display: grid;
+          gap: 20px;
+          margin-top: 42px;
+        }
+
+        .diagnosis-card {
+          display: grid;
+          grid-template-columns: 74px 1fr;
+          gap: 22px;
+          align-items: start;
+          padding: 28px 30px;
+          border-radius: 30px;
+        }
+
+        .diagnosis-index {
+          display: grid;
+          place-items: center;
+          width: 60px;
+          height: 60px;
+          border-radius: 50%;
+          background: rgba(231, 169, 61, 0.12);
+          color: #e7a93d;
+          font-size: 21px;
+          letter-spacing: 0.12em;
+        }
+
+        .diagnosis-card h3 {
+          margin: 0;
+          font-size: 40px;
+          line-height: 1.16;
+          color: #ffe1a4;
+        }
+
+        .diagnosis-card p {
+          margin: 10px 0 0;
+          font-size: 29px;
+          line-height: 1.42;
+          color: rgba(239, 226, 199, 0.72);
+        }
+
+        .diagnosis-card:nth-child(2) {
+          border-color: rgba(231, 169, 61, 0.42);
+          background:
+            linear-gradient(135deg, rgba(231, 169, 61, 0.13), rgba(255, 255, 255, 0.035)),
+            rgba(16, 23, 34, 0.88);
+        }
+
+        .action-list {
+          display: grid;
+          gap: 20px;
+          margin: 44px 0 0;
+          padding: 0;
+          list-style: none;
+          counter-reset: action;
+        }
+
+        .action-list li {
+          counter-increment: action;
+          display: grid;
+          grid-template-columns: 74px 1fr;
+          gap: 22px;
+          align-items: center;
+          min-height: 104px;
+          padding: 22px 26px;
+          border-radius: 30px;
+          background: rgba(239, 226, 199, 0.07);
+          border: 1px solid rgba(239, 226, 199, 0.13);
+          font-size: 35px;
+          line-height: 1.28;
+        }
+
+        .action-list li::before {
+          content: counter(action, decimal-leading-zero);
+          display: grid;
+          place-items: center;
+          width: 64px;
+          height: 64px;
+          border-radius: 50%;
+          background: #e7a93d;
+          color: #101722;
+          font-size: 22px;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+        }
+
+        .action-caption {
+          max-width: none;
+          margin-top: 28px;
+          padding: 20px 24px;
+          border-radius: 24px;
+          background: rgba(199, 100, 59, 0.1);
+          border: 1px solid rgba(199, 100, 59, 0.26);
+          color: #f5c28b;
+          font-size: 31px;
+        }
+
+        .memory-card {
+          padding: 76px 62px;
+          border-radius: 48px;
+          border-color: rgba(231, 169, 61, 0.35);
+          background:
+            linear-gradient(135deg, rgba(231, 169, 61, 0.15), rgba(255, 255, 255, 0.03)),
+            rgba(16, 23, 34, 0.88);
+        }
+
+        .memory-line {
+          margin-top: 28px;
+          font-size: 70px;
+          line-height: 1.18;
+        }
+
+        .footer-note {
+          margin-top: 34px;
+          color: rgba(239, 226, 199, 0.58);
+          font-size: 24px;
+          letter-spacing: 0.08em;
+          text-transform: none;
+        }
+
+        .caption-layer {
+          position: absolute;
+          left: 70px;
+          right: 70px;
+          bottom: 74px;
+          height: 168px;
+          z-index: 20;
+          pointer-events: none;
+        }
+
+        .caption-group {
+          position: absolute;
+          inset: 0;
+          display: grid;
+          place-items: center;
+          opacity: 0;
+        }
+
+        .caption-text {
+          max-width: 910px;
+          padding: 18px 26px 20px;
+          border-radius: 28px;
+          background: rgba(7, 9, 15, 0.74);
+          border: 1px solid rgba(239, 226, 199, 0.16);
+          box-shadow: 0 18px 48px rgba(0, 0, 0, 0.26);
+          color: #f7ecd5;
+          font-size: 33px;
+          line-height: 1.34;
+          text-align: center;
+          letter-spacing: 0.01em;
+          backdrop-filter: blur(14px);
+        }
+      </style>
+
+      <script src="./content.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+      <script>
+        const data = window.THINKING_TOOL_VIDEO;
+        const root = document.getElementById("thinking-tool-template");
+        root.setAttribute("data-composition-id", data.meta.id);
+        root.setAttribute("data-duration", String(data.meta.duration));
+
+        const make = (tag, className, text) => {
+          const node = document.createElement(tag);
+          if (className) node.className = className;
+          if (text) node.textContent = text;
+          return node;
+        };
+        const mount = (selector, children) => {
+          const target = document.querySelector(selector);
+          target.innerHTML = "";
+          children.forEach((child) => target.appendChild(child));
+        };
+        function renderLines(selector, values, hotIndex) {
+          mount(selector, values.map((value, index) => make("span", index === hotIndex ? "hot" : "muted", value)));
+        }
+        function renderMetrics(selector, values) {
+          mount(selector, values.map((item) => {
+            const card = make("div", "metric-card");
+            card.append(make("span", "metric-label", item.label), make("span", "metric-value", item.value));
+            return card;
+          }));
+        }
+        function renderChain(selector, values) {
+          mount(selector, values.map((item) => {
+            const card = make("article", "chain-card");
+            card.append(make("span", "chain-label", item.label), make("h3", "", item.title), make("p", "", item.body));
+            return card;
+          }));
+        }
+        function renderFlow(selector, values) {
+          mount(selector, values.map((value) => make("div", "flow-item", value)));
+        }
+        function renderDiagnosis(selector, values) {
+          mount(selector, values.map((item) => {
+            const card = make("article", "diagnosis-card");
+            const content = make("div");
+            content.append(make("h3", "", item.title), make("p", "", item.body));
+            card.append(make("span", "diagnosis-index", item.index), content);
+            return card;
+          }));
+        }
+        function renderActions(selector, values) {
+          mount(selector, values.map((value) => make("li", "", value)));
+        }
+
+        document.querySelector(".js-series-title").textContent = data.meta.seriesTitle || "PRACTICAL THINKING TOOLS";
+        document.querySelector(".js-episode-label").textContent = data.meta.episodeLabel || data.meta.id;
+        document.querySelector(".js-theme-badge").textContent = data.meta.themeBadge || "";
+        document.querySelector(".js-window-label").textContent = data.hero.windowLabel || "case report";
+
+        document.querySelector(".js-hero-eyebrow").textContent = data.hero.eyebrow;
+        renderLines(".js-hero-headline", data.hero.headline, 1);
+        document.querySelector(".js-hero-strike").textContent = data.hero.strike;
+        document.querySelector(".js-hero-subline").textContent = data.hero.subline;
+        renderMetrics(".js-hero-metrics", data.hero.metrics);
+
+        document.querySelector(".js-principle-number").textContent = data.principle.number;
+        document.querySelector(".js-principle-label").textContent = data.principle.label;
+        renderLines(".js-principle-title", data.principle.title, 1);
+        document.querySelector(".js-principle-copy").textContent = data.principle.copy;
+        renderChain(".js-principle-links", data.principle.links);
+        document.querySelector(".js-principle-footer").textContent = data.principle.footer || "";
+
+        document.querySelector(".js-case-kicker").textContent = data.caseStudy.kicker;
+        document.querySelector(".js-case-title").textContent = data.caseStudy.title;
+        document.querySelector(".js-case-left-label").textContent = data.caseStudy.leftLabel;
+        document.querySelector(".js-case-left-meta").textContent = data.caseStudy.leftMeta;
+        document.querySelector(".js-case-right-label").textContent = data.caseStudy.rightLabel;
+        document.querySelector(".js-case-right-meta").textContent = data.caseStudy.rightMeta;
+        document.querySelector(".js-old-story-label").textContent = data.caseStudy.oldStoryBadge?.label || "";
+        document.querySelector(".js-old-story-value").textContent = data.caseStudy.oldStoryBadge?.value || "";
+        document.querySelector(".js-old-story-score").textContent = data.caseStudy.oldStoryBadge?.score || "";
+        document.querySelector(".js-audit-stamp").textContent = data.caseStudy.auditStamp?.stamp || "";
+        renderFlow(".js-case-left-flow", data.caseStudy.leftFlow);
+        renderFlow(".js-case-right-flow", data.caseStudy.rightFlow);
+        document.querySelector(".js-case-insight").textContent = data.caseStudy.insight;
+
+        document.querySelector(".js-diagnosis-kicker").textContent = data.diagnosis.kicker;
+        document.querySelector(".js-diagnosis-title").textContent = data.diagnosis.title;
+        renderDiagnosis(".js-diagnosis-cards", data.diagnosis.cards);
+
+        document.querySelector(".js-action-kicker").textContent = data.action.kicker;
+        document.querySelector(".js-action-title").textContent = data.action.title;
+        renderActions(".js-action-items", data.action.items);
+        document.querySelector(".js-action-caption").textContent = data.action.caption;
+
+        document.querySelector(".js-outro-kicker").textContent = data.outro.kicker;
+        renderLines(".js-outro-title", [data.outro.line1, data.outro.line2, data.outro.line3], 2);
+        document.querySelector(".js-outro-footer").textContent = data.outro.footer;
+
+        const captionsRoot = document.querySelector(".js-captions");
+        data.captions.forEach((caption, index) => {
+          const group = document.createElement("div");
+          const text = document.createElement("div");
+          group.className = "caption-group";
+          group.id = "caption-" + index;
+          text.className = "caption-text";
+          text.textContent = caption.text;
+          group.appendChild(text);
+          captionsRoot.appendChild(group);
+        });
+
+        window.__timelines = window.__timelines || {};
+        const timeline = gsap.timeline({ paused: true, defaults: { ease: "power3.out" } });
+        const t = data.timing;
+
+        gsap.set(".scene", { opacity: 0 });
+        gsap.set(".eyebrow, .hero-title span, .redline, .hero-subline, .audit-snapshot, .section-title, .principle-card, .case-column, .case-insight, .action-caption, .memory-card, .footer-note", {
+          y: 48,
+          opacity: 0,
+        });
+        gsap.set(".metric-card, .chain-card, .flow-item, .diagnosis-card, .action-list li", {
+          y: 34,
+          opacity: 0,
+        });
+        gsap.set(".caption-group", { y: 12, opacity: 0 });
+
+        timeline.fromTo(".signal-a", { x: -40, y: -20, scale: 0.9 }, { x: 96, y: 120, scale: 1.12, duration: data.meta.duration, ease: "none" }, 0);
+        timeline.fromTo(".signal-b", { x: 30, y: 40, scale: 1.04 }, { x: -96, y: -120, scale: 0.92, duration: data.meta.duration, ease: "none" }, 0);
+        timeline.fromTo(".signal-c", { x: 0, y: 0, scale: 0.96 }, { x: 40, y: -90, scale: 1.08, duration: data.meta.duration, ease: "none" }, 0);
+        timeline.fromTo(".ledger-grid", { opacity: 0.16 }, { opacity: 0.28, duration: data.meta.duration, ease: "none" }, 0);
+        timeline.to(".progress-fill", { scaleX: 1, duration: data.meta.duration, ease: "none" }, 0);
+
+        timeline.set(".scene-hero", { opacity: 1 }, t.heroStart);
+        timeline.to(".scene-hero .eyebrow", { y: 0, opacity: 1, duration: 0.7 }, t.heroStart + 0.2);
+        timeline.to(".scene-hero .hero-title span", { y: 0, opacity: 1, duration: 0.85, stagger: 0.16 }, t.heroStart + 0.5);
+        timeline.to(".scene-hero .redline", { y: 0, opacity: 1, duration: 0.7 }, t.heroStart + 1.25);
+        timeline.to(".scene-hero .hero-subline", { y: 0, opacity: 1, duration: 0.7 }, t.heroStart + 1.85);
+        timeline.to(".scene-hero .audit-snapshot", { y: 0, opacity: 1, duration: 0.85 }, t.heroStart + 2.4);
+        timeline.to(".scene-hero .metric-card", { y: 0, opacity: 1, duration: 0.52, stagger: 0.12 }, t.heroStart + 2.85);
+        timeline.to(".scene-hero", { opacity: 0, duration: 0.8 }, t.heroEnd - 0.8);
+
+        timeline.set(".scene-principle", { opacity: 1 }, t.principleStart);
+        timeline.to(".scene-principle .principle-card", { y: 0, opacity: 1, duration: 0.85 }, t.principleStart + 0.25);
+        timeline.to(".scene-principle .chain-card", { y: 0, opacity: 1, duration: 0.6, stagger: 0.18 }, t.principleStart + 1.0);
+        timeline.to(".scene-principle", { opacity: 0, duration: 0.75 }, t.principleEnd - 0.75);
+
+        timeline.set(".scene-case", { opacity: 1 }, t.caseStart);
+        timeline.to(".scene-case .eyebrow", { y: 0, opacity: 1, duration: 0.65 }, t.caseStart + 0.2);
+        timeline.to(".scene-case .section-title", { y: 0, opacity: 1, duration: 0.78 }, t.caseStart + 0.45);
+        timeline.to(".scene-case .case-column.weak", { y: 0, opacity: 1, duration: 0.82 }, t.caseStart + 1.05);
+        timeline.to(".scene-case .case-column.weak .flow-item", { y: 0, opacity: 1, duration: 0.5, stagger: 0.12 }, t.caseStart + 1.65);
+        timeline.to(".scene-case .case-column.strong", { y: 0, opacity: 1, duration: 0.82 }, t.caseRightReveal);
+        timeline.to(".scene-case .case-column.strong .flow-item", { y: 0, opacity: 1, duration: 0.5, stagger: 0.12 }, t.caseRightReveal + 0.55);
+        timeline.to(".scene-case .case-insight", { y: 0, opacity: 1, duration: 0.7 }, t.caseInsightReveal);
+        timeline.to(".scene-case .case-column.weak", { opacity: 0.64, duration: 0.7, overwrite: "auto" }, t.caseInsightReveal + 0.1);
+        timeline.to(".scene-case .case-column.strong", { scale: 1.015, duration: 0.9, ease: "sine.out" }, t.caseInsightReveal + 0.2);
+        timeline.to(".scene-case", { opacity: 0, duration: 0.8 }, t.caseEnd - 0.8);
+
+        timeline.set(".scene-diagnosis", { opacity: 1 }, t.diagnosisStart);
+        timeline.to(".scene-diagnosis .eyebrow", { y: 0, opacity: 1, duration: 0.55 }, t.diagnosisStart + 0.1);
+        timeline.to(".scene-diagnosis .section-title", { y: 0, opacity: 1, duration: 0.65 }, t.diagnosisStart + 0.25);
+        timeline.to(".scene-diagnosis .diagnosis-card", { y: 0, opacity: 1, duration: 0.55, stagger: 0.13 }, t.diagnosisStart + 0.65);
+        timeline.to(".scene-diagnosis .diagnosis-card:nth-child(2)", { scale: 1.02, duration: 0.6, ease: "sine.out" }, t.diagnosisStart + 2.8);
+        timeline.to(".scene-diagnosis", { opacity: 0, duration: 0.55 }, t.diagnosisEnd - 0.55);
+
+        timeline.set(".scene-action", { opacity: 1 }, t.actionStart);
+        timeline.to(".scene-action .eyebrow", { y: 0, opacity: 1, duration: 0.55 }, t.actionStart + 0.1);
+        timeline.to(".scene-action .section-title", { y: 0, opacity: 1, duration: 0.65 }, t.actionStart + 0.25);
+        timeline.to(".scene-action .action-list li", { y: 0, opacity: 1, duration: 0.56, stagger: 0.16 }, t.actionStart + 0.7);
+        timeline.to(".scene-action .action-caption", { y: 0, opacity: 1, duration: 0.62 }, t.actionStart + 1.85);
+        timeline.to(".scene-action", { opacity: 0, duration: 0.55 }, t.actionEnd - 0.55);
+
+        timeline.set(".scene-outro", { opacity: 1 }, t.outroStart);
+        timeline.to(".scene-outro .memory-card", { y: 0, opacity: 1, duration: 0.7 }, t.outroStart + 0.1);
+        timeline.to(".scene-outro .footer-note", { y: 0, opacity: 1, duration: 0.55 }, t.outroStart + 0.55);
+        timeline.to(".scene-outro .memory-card", { scale: 1.018, duration: Math.max(1, t.outroEnd - t.outroStart - 0.9), ease: "sine.inOut" }, t.outroStart + 0.8);
+
+        data.captions.forEach((caption, index) => {
+          const selector = "#caption-" + index;
+          timeline.set(selector, { opacity: 0, y: 12 }, Math.max(0, caption.start - 0.01));
+          timeline.to(selector, { opacity: 1, y: 0, duration: 0.16, ease: "power2.out" }, caption.start);
+          timeline.to(selector, { opacity: 0, y: -8, duration: 0.12, ease: "power2.in" }, Math.max(caption.start, caption.end - 0.12));
+          timeline.set(selector, { opacity: 0, y: 12 }, caption.end);
+        });
+
+        window.__timelines[data.meta.id] = timeline;
+      </script>
+    </div>
+  </body>
+</html>

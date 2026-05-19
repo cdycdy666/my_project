@@ -77,6 +77,7 @@ def _build_handler(env_file: str):
                             "status": outcome.result.status,
                             "summary": outcome.assessment.summary,
                             "recommendation": outcome.assessment.recommendation,
+                            "transcript_text": outcome.result.transcript_text,
                         },
                         "notion": {
                             "page_id": outcome.notion_page["id"],

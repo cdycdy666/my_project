@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Naval Leverage V4</title>
+  </head>
+  <body>
+    <div id="naval-leverage-v4" data-composition-id="naval-leverage-v4" data-start="0" data-duration="89.2" data-width="1080" data-height="1920">
+      <div class="canvas" data-layout-allow-overflow>
+        <div class="paper-grain" data-layout-ignore></div>
+        <div class="ledger-grid" data-layout-ignore></div>
+        <div class="signal signal-a" data-layout-ignore></div>
+        <div class="signal signal-b" data-layout-ignore></div>
+        <div class="series-chrome">
+          <span>NAVAL ALMANACK</span>
+          <span>02 / LEVERAGE</span>
+        </div>
+        <div class="progress-track"><div class="progress-fill"></div></div>
+
+        <section class="scene scene-hero">
+          <p class="eyebrow js-hero-eyebrow"></p>
+          <h1 class="hero-title js-hero-headline"></h1>
+          <div class="redline js-hero-strike"></div>
+          <p class="hero-subline js-hero-subline"></p>
+          <div class="fingerprint" aria-hidden="true">
+            <span></span><span></span><span></span><span></span>
+          </div>
+        </section>
+
+        <section class="scene scene-case">
+          <p class="eyebrow js-case-kicker"></p>
+          <h2 class="section-title js-case-title"></h2>
+          <div class="case-board">
+            <div class="case-column weak">
+              <p class="column-label js-case-left-label"></p>
+              <div class="flow-list js-case-left-flow"></div>
+            </div>
+            <div class="case-column strong">
+              <p class="column-label js-case-right-label"></p>
+              <div class="flow-list js-case-right-flow"></div>
+            </div>
+          </div>
+          <p class="case-insight js-case-insight"></p>
+        </section>
+
+        <section class="scene scene-principle">
+          <div class="principle-card">
+            <p class="principle-number js-principle-number"></p>
+            <p class="eyebrow js-principle-label"></p>
+            <h2 class="principle-title js-principle-title"></h2>
+            <p class="principle-copy js-principle-copy"></p>
+          </div>
+        </section>
+
+        <section class="scene scene-pillars">
+          <p class="eyebrow js-pillars-kicker"></p>
+          <h2 class="section-title js-pillars-title"></h2>
+          <div class="pillar-stack js-pillars-cards"></div>
+        </section>
+
+        <section class="scene scene-action">
+          <p class="eyebrow js-action-kicker"></p>
+          <h2 class="section-title js-action-title"></h2>
+          <ol class="action-list js-action-items"></ol>
+          <p class="action-caption js-action-caption"></p>
+        </section>
+
+        <section class="scene scene-outro">
+          <div class="memory-card">
+            <p class="eyebrow js-outro-kicker"></p>
+            <h2 class="memory-line js-outro-title"></h2>
+          </div>
+          <p class="footer-note js-outro-footer"></p>
+        </section>
+
+        <div class="caption-layer js-captions" data-layout-allow-overflow></div>
+      </div>
+
+      <style>
+        :root {
+          color-scheme: dark;
+        }
+
+        html,
+        body {
+          margin: 0;
+          width: 1080px;
+          height: 1920px;
+          overflow: hidden;
+          background: #07090f;
+        }
+
+        #naval-leverage-v4 {
+          position: relative;
+          width: 1080px;
+          height: 1920px;
+          overflow: hidden;
+          background:
+            radial-gradient(circle at 18% 10%, rgba(231, 169, 61, 0.22), transparent 28%),
+            radial-gradient(circle at 82% 70%, rgba(111, 143, 168, 0.18), transparent 34%),
+            linear-gradient(180deg, #07090f 0%, #0d1320 52%, #080a10 100%);
+          color: #efe2c7;
+          font-family: "Noto Sans SC", "PingFang SC", sans-serif;
+        }
+
+        .canvas,
+        .paper-grain,
+        .ledger-grid,
+        .scene {
+          position: absolute;
+          inset: 0;
+        }
+
+        .paper-grain {
+          opacity: 0.1;
+          background-image:
+            linear-gradient(115deg, rgba(239, 226, 199, 0.09), transparent 42%),
+            repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 7px);
+          mix-blend-mode: overlay;
+        }
+
+        .ledger-grid {
+          opacity: 0.24;
+          background-image:
+            linear-gradient(rgba(239, 226, 199, 0.08) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(239, 226, 199, 0.07) 1px, transparent 1px);
+          background-size: 90px 90px;
+          mask-image: linear-gradient(180deg, transparent 0%, #000 16%, #000 84%, transparent 100%);
+        }
+
+        .signal {
+          position: absolute;
+          border-radius: 999px;
+          filter: blur(34px);
+          opacity: 0.75;
+        }
+
+        .signal-a {
+          left: -90px;
+          top: 210px;
+          width: 380px;
+          height: 380px;
+          background: rgba(231, 169, 61, 0.34);
+        }
+
+        .signal-b {
+          right: -130px;
+          bottom: 260px;
+          width: 460px;
+          height: 460px;
+          background: rgba(199, 100, 59, 0.22);
+        }
+
+        .scene {
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          padding: 118px 86px;
+          box-sizing: border-box;
+          opacity: 0;
+        }
+
+        .series-chrome {
+          position: absolute;
+          top: 48px;
+          left: 64px;
+          right: 64px;
+          z-index: 30;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          color: rgba(239, 226, 199, 0.58);
+          font-size: 18px;
+          line-height: 1;
+          letter-spacing: 0.2em;
+          text-transform: uppercase;
+        }
+
+        .progress-track {
+          position: absolute;
+          top: 86px;
+          left: 64px;
+          right: 64px;
+          z-index: 30;
+          height: 2px;
+          background: rgba(239, 226, 199, 0.12);
+        }
+
+        .progress-fill {
+          width: 100%;
+          height: 100%;
+          transform: scaleX(0);
+          transform-origin: left center;
+          background: linear-gradient(90deg, #e7a93d, #f3d097);
+          box-shadow: 0 0 18px rgba(231, 169, 61, 0.38);
+        }
+
+        .eyebrow,
+        .footer-note,
+        .principle-number,
+        .column-label {
+          margin: 0;
+          font-size: 23px;
+          line-height: 1.35;
+          letter-spacing: 0.18em;
+          text-transform: uppercase;
+          color: rgba(239, 226, 199, 0.66);
+        }
+
+        .hero-title,
+        .section-title,
+        .principle-title,
+        .memory-line {
+          margin: 0;
+          font-family: "Noto Serif SC", "Songti SC", serif;
+          font-weight: 700;
+          letter-spacing: -0.045em;
+        }
+
+        .hero-title {
+          margin-top: 34px;
+          font-size: 112px;
+          line-height: 1.04;
+        }
+
+        .hero-title span,
+        .principle-title span,
+        .memory-line span {
+          display: block;
+        }
+
+        .hero-title .muted {
+          color: rgba(239, 226, 199, 0.76);
+        }
+
+        .hero-title .hot,
+        .principle-title .hot,
+        .memory-line .hot {
+          color: #e7a93d;
+          text-shadow: 0 0 34px rgba(231, 169, 61, 0.22);
+        }
+
+        .redline {
+          width: fit-content;
+          margin-top: 38px;
+          padding: 20px 28px;
+          border: 1px solid rgba(199, 100, 59, 0.55);
+          border-radius: 999px;
+          color: #f5c28b;
+          font-size: 36px;
+          line-height: 1.25;
+          background: rgba(199, 100, 59, 0.1);
+          box-shadow: 0 0 38px rgba(199, 100, 59, 0.14);
+        }
+
+        .hero-subline,
+        .principle-copy,
+        .case-insight,
+        .action-caption {
+          margin: 36px 0 0;
+          max-width: 860px;
+          font-size: 39px;
+          line-height: 1.58;
+          color: rgba(239, 226, 199, 0.76);
+        }
+
+        .fingerprint {
+          position: absolute;
+          right: 82px;
+          bottom: 130px;
+          width: 260px;
+          height: 330px;
+          border: 1px solid rgba(231, 169, 61, 0.26);
+          border-radius: 130px;
+          opacity: 0.76;
+        }
+
+        .fingerprint span {
+          position: absolute;
+          inset: 42px;
+          border: 3px solid rgba(231, 169, 61, 0.58);
+          border-left-color: transparent;
+          border-bottom-color: transparent;
+          border-radius: 50%;
+        }
+
+        .fingerprint span:nth-child(2) {
+          inset: 72px;
+          transform: rotate(-18deg);
+        }
+
+        .fingerprint span:nth-child(3) {
+          inset: 104px;
+          transform: rotate(24deg);
+        }
+
+        .fingerprint span:nth-child(4) {
+          inset: 136px;
+          transform: rotate(-42deg);
+        }
+
+        .section-title {
+          margin-top: 28px;
+          font-size: 72px;
+          line-height: 1.12;
+        }
+
+        .case-board {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 24px;
+          margin-top: 50px;
+        }
+
+        .case-column,
+        .principle-card,
+        .pillar-card,
+        .memory-card {
+          border: 1px solid rgba(239, 226, 199, 0.13);
+          background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.025)),
+            rgba(16, 23, 34, 0.82);
+          box-shadow: 0 30px 90px rgba(0, 0, 0, 0.32);
+          backdrop-filter: blur(18px);
+        }
+
+        .case-column {
+          min-height: 560px;
+          padding: 34px 28px;
+          border-radius: 36px;
+        }
+
+        .case-column.weak {
+          border-color: rgba(199, 100, 59, 0.28);
+        }
+
+        .case-column.strong {
+          border-color: rgba(231, 169, 61, 0.38);
+        }
+
+        .flow-list {
+          display: grid;
+          gap: 18px;
+          margin-top: 28px;
+        }
+
+        .flow-item {
+          position: relative;
+          padding: 24px 22px;
+          border-radius: 24px;
+          background: rgba(239, 226, 199, 0.06);
+          font-size: 34px;
+          line-height: 1.22;
+          color: rgba(239, 226, 199, 0.86);
+        }
+
+        .case-column.strong .flow-item {
+          color: #ffe1a4;
+          background: rgba(231, 169, 61, 0.1);
+        }
+
+        .principle-card {
+          padding: 84px 68px;
+          border-radius: 48px;
+        }
+
+        .principle-number {
+          color: #e7a93d;
+        }
+
+        .principle-title {
+          margin-top: 26px;
+          font-size: 84px;
+          line-height: 1.12;
+        }
+
+        .pillar-stack {
+          display: grid;
+          gap: 22px;
+          margin-top: 44px;
+        }
+
+        .pillar-card {
+          display: grid;
+          grid-template-columns: 82px 1fr;
+          gap: 22px;
+          align-items: start;
+          padding: 30px 32px;
+          border-radius: 30px;
+        }
+
+        .pillar-index {
+          display: grid;
+          place-items: center;
+          width: 62px;
+          height: 62px;
+          border-radius: 50%;
+          background: rgba(231, 169, 61, 0.12);
+          color: #e7a93d;
+          font-size: 22px;
+          letter-spacing: 0.12em;
+        }
+
+        .pillar-card h3 {
+          margin: 0;
+          font-size: 42px;
+          line-height: 1.16;
+          color: #ffe1a4;
+        }
+
+        .pillar-card p {
+          margin: 12px 0 0;
+          font-size: 30px;
+          line-height: 1.45;
+          color: rgba(239, 226, 199, 0.73);
+        }
+
+        .action-list {
+          display: grid;
+          gap: 22px;
+          margin: 48px 0 0;
+          padding: 0;
+          list-style: none;
+          counter-reset: action;
+        }
+
+        .action-list li {
+          counter-increment: action;
+          display: grid;
+          grid-template-columns: 74px 1fr;
+          gap: 24px;
+          align-items: center;
+          min-height: 110px;
+          padding: 24px 28px;
+          border-radius: 30px;
+          background: rgba(239, 226, 199, 0.07);
+          border: 1px solid rgba(239, 226, 199, 0.13);
+          font-size: 37px;
+          line-height: 1.28;
+        }
+
+        .action-list li::before {
+          content: counter(action, decimal-leading-zero);
+          display: grid;
+          place-items: center;
+          width: 64px;
+          height: 64px;
+          border-radius: 50%;
+          background: #e7a93d;
+          color: #101722;
+          font-size: 22px;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+        }
+
+        .memory-card {
+          padding: 84px 64px;
+          border-radius: 48px;
+          border-color: rgba(231, 169, 61, 0.35);
+          background:
+            linear-gradient(135deg, rgba(231, 169, 61, 0.15), rgba(255, 255, 255, 0.03)),
+            rgba(16, 23, 34, 0.88);
+        }
+
+        .memory-line {
+          margin-top: 28px;
+          font-size: 78px;
+          line-height: 1.16;
+        }
+
+        .footer-note {
+          margin-top: 34px;
+          color: rgba(239, 226, 199, 0.48);
+        }
+
+        .caption-layer {
+          position: absolute;
+          left: 72px;
+          right: 72px;
+          bottom: 88px;
+          height: 132px;
+          z-index: 20;
+          pointer-events: none;
+        }
+
+        .caption-group {
+          position: absolute;
+          inset: 0;
+          display: grid;
+          place-items: center;
+          opacity: 0;
+        }
+
+        .caption-text {
+          max-width: 900px;
+          padding: 18px 26px 20px;
+          border-radius: 28px;
+          background: rgba(7, 9, 15, 0.72);
+          border: 1px solid rgba(239, 226, 199, 0.16);
+          box-shadow: 0 18px 48px rgba(0, 0, 0, 0.26);
+          color: #f7ecd5;
+          font-size: 33px;
+          line-height: 1.35;
+          text-align: center;
+          letter-spacing: 0.01em;
+          backdrop-filter: blur(14px);
+        }
+      </style>
+
+      <script src="./content.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+      <script>
+        const data = window.NAVAL_VIDEO;
+        const root = document.getElementById("naval-leverage-v4");
+        root.setAttribute("data-composition-id", data.meta.id);
+        root.setAttribute("data-duration", String(data.meta.duration));
+
+        function lines(selector, values, hotIndex) {
+          const target = document.querySelector(selector);
+          target.innerHTML = "";
+          values.forEach((value, index) => {
+            const span = document.createElement("span");
+            span.className = index === hotIndex ? "hot" : "muted";
+            span.textContent = value;
+            target.appendChild(span);
+          });
+        }
+
+        function flow(selector, values) {
+          const target = document.querySelector(selector);
+          target.innerHTML = "";
+          values.forEach((value) => {
+            const item = document.createElement("div");
+            item.className = "flow-item";
+            item.textContent = value;
+            target.appendChild(item);
+          });
+        }
+
+        document.querySelector(".js-hero-eyebrow").textContent = data.hero.eyebrow;
+        lines(".js-hero-headline", data.hero.headline, -1);
+        document.querySelector(".js-hero-strike").textContent = data.hero.strike;
+        document.querySelector(".js-hero-subline").textContent = data.hero.subline;
+
+        document.querySelector(".js-case-kicker").textContent = data.caseStudy.kicker;
+        document.querySelector(".js-case-title").textContent = data.caseStudy.title;
+        document.querySelector(".js-case-left-label").textContent = data.caseStudy.leftLabel;
+        document.querySelector(".js-case-right-label").textContent = data.caseStudy.rightLabel;
+        flow(".js-case-left-flow", data.caseStudy.leftFlow);
+        flow(".js-case-right-flow", data.caseStudy.rightFlow);
+        document.querySelector(".js-case-insight").textContent = data.caseStudy.insight;
+
+        document.querySelector(".js-principle-number").textContent = data.principle.number;
+        document.querySelector(".js-principle-label").textContent = data.principle.label;
+        lines(".js-principle-title", data.principle.title, 1);
+        document.querySelector(".js-principle-copy").textContent = data.principle.copy;
+
+        document.querySelector(".js-pillars-kicker").textContent = data.pillars.kicker;
+        document.querySelector(".js-pillars-title").textContent = data.pillars.title;
+        const pillarRoot = document.querySelector(".js-pillars-cards");
+        data.pillars.cards.forEach((card) => {
+          const article = document.createElement("article");
+          article.className = "pillar-card";
+          article.innerHTML =
+            '<span class="pillar-index">' + card.index + "</span>" +
+            "<div><h3>" + card.title + "</h3><p>" + card.body + "</p></div>";
+          pillarRoot.appendChild(article);
+        });
+
+        document.querySelector(".js-action-kicker").textContent = data.action.kicker;
+        document.querySelector(".js-action-title").textContent = data.action.title;
+        const actionRoot = document.querySelector(".js-action-items");
+        data.action.items.forEach((item) => {
+          const li = document.createElement("li");
+          li.textContent = item;
+          actionRoot.appendChild(li);
+        });
+        document.querySelector(".js-action-caption").textContent = data.action.caption;
+
+        document.querySelector(".js-outro-kicker").textContent = data.outro.kicker;
+        document.querySelector(".js-outro-title").innerHTML =
+          "<span>" + data.outro.line1 + "</span>" +
+          "<span>" + data.outro.line2 + "</span>" +
+          '<span class="hot">' + data.outro.line3 + "</span>";
+        document.querySelector(".js-outro-footer").textContent = data.outro.footer;
+
+        const captionsRoot = document.querySelector(".js-captions");
+        data.captions.forEach((caption, index) => {
+          const group = document.createElement("div");
+          group.className = "caption-group";
+          group.id = "caption-" + index;
+          group.innerHTML = '<div class="caption-text">' + caption.text + "</div>";
+          captionsRoot.appendChild(group);
+        });
+
+        window.__timelines = window.__timelines || {};
+        const timeline = gsap.timeline({ paused: true, defaults: { ease: "power3.out" } });
+        const t = data.timing;
+
+        gsap.set(".scene", { opacity: 0 });
+        gsap.set(".eyebrow, .hero-title span, .redline, .hero-subline, .fingerprint, .section-title, .case-column, .case-insight, .principle-card, .pillar-card, .action-list li, .action-caption, .memory-card, .footer-note", {
+          y: 48,
+          opacity: 0,
+        });
+
+        timeline.fromTo(".signal-a", { x: -40, y: -20, scale: 0.9 }, { x: 95, y: 110, scale: 1.12, duration: data.meta.duration, ease: "none" }, 0);
+        timeline.fromTo(".signal-b", { x: 30, y: 40, scale: 1.04 }, { x: -90, y: -120, scale: 0.92, duration: data.meta.duration, ease: "none" }, 0);
+        timeline.fromTo(".ledger-grid", { opacity: 0.16 }, { opacity: 0.28, duration: data.meta.duration, ease: "none" }, 0);
+        timeline.to(".progress-fill", { scaleX: 1, duration: data.meta.duration, ease: "none" }, 0);
+
+        timeline.set(".scene-hero", { opacity: 1 }, t.heroStart);
+        timeline.to(".scene-hero .eyebrow", { y: 0, opacity: 1, duration: 0.7 }, t.heroStart + 0.2);
+        timeline.to(".scene-hero .hero-title span", { y: 0, opacity: 1, duration: 0.85, stagger: 0.16 }, t.heroStart + 0.5);
+        timeline.to(".scene-hero .redline", { y: 0, opacity: 1, duration: 0.75 }, t.heroStart + 1.35);
+        timeline.to(".scene-hero .hero-subline", { y: 0, opacity: 1, duration: 0.75 }, t.heroStart + 2.0);
+        timeline.to(".scene-hero .fingerprint", { y: 0, opacity: 1, duration: 0.9 }, t.heroStart + 2.35);
+        timeline.to(".scene-hero", { opacity: 0, duration: 0.8 }, t.heroEnd - 0.8);
+
+        timeline.set(".scene-case", { opacity: 1 }, t.caseStart);
+        timeline.to(".scene-case .eyebrow", { y: 0, opacity: 1, duration: 0.65 }, t.caseStart + 0.2);
+        timeline.to(".scene-case .section-title", { y: 0, opacity: 1, duration: 0.8 }, t.caseStart + 0.5);
+        timeline.to(".scene-case .case-column", { y: 0, opacity: 1, duration: 0.8, stagger: 0.25 }, t.caseStart + 1.1);
+        timeline.to(".scene-case .flow-item", { y: 0, opacity: 1, duration: 0.55, stagger: 0.11 }, t.caseStart + 1.7);
+        timeline.to(".scene-case .case-insight", { y: 0, opacity: 1, duration: 0.75 }, t.caseStart + 5.8);
+        timeline.to(".scene-case", { opacity: 0, duration: 0.8 }, t.caseEnd - 0.8);
+
+        timeline.set(".scene-principle", { opacity: 1 }, t.principleStart);
+        timeline.to(".scene-principle .principle-card", { y: 0, opacity: 1, duration: 0.95 }, t.principleStart + 0.25);
+        timeline.to(".scene-principle", { opacity: 0, duration: 0.75 }, t.principleEnd - 0.75);
+
+        timeline.set(".scene-pillars", { opacity: 1 }, t.pillarsStart);
+        timeline.to(".scene-pillars .eyebrow", { y: 0, opacity: 1, duration: 0.65 }, t.pillarsStart + 0.2);
+        timeline.to(".scene-pillars .section-title", { y: 0, opacity: 1, duration: 0.8 }, t.pillarsStart + 0.5);
+        timeline.to(".scene-pillars .pillar-card", { y: 0, opacity: 1, duration: 0.75, stagger: 0.22 }, t.pillarsStart + 1.0);
+        timeline.to(".scene-pillars", { opacity: 0, duration: 0.75 }, t.pillarsEnd - 0.75);
+
+        timeline.set(".scene-action", { opacity: 1 }, t.actionStart);
+        timeline.to(".scene-action .eyebrow", { y: 0, opacity: 1, duration: 0.65 }, t.actionStart + 0.2);
+        timeline.to(".scene-action .section-title", { y: 0, opacity: 1, duration: 0.75 }, t.actionStart + 0.5);
+        timeline.to(".scene-action .action-list li", { y: 0, opacity: 1, duration: 0.62, stagger: 0.18 }, t.actionStart + 1.0);
+        timeline.to(".scene-action .action-caption", { y: 0, opacity: 1, duration: 0.72 }, t.actionStart + 2.2);
+        timeline.to(".scene-action", { opacity: 0, duration: 0.55 }, t.actionEnd - 0.55);
+
+        timeline.set(".scene-outro", { opacity: 1 }, t.outroStart);
+        timeline.to(".scene-outro .memory-card", { y: 0, opacity: 1, duration: 0.75 }, t.outroStart + 0.1);
+        timeline.to(".scene-outro .footer-note", { y: 0, opacity: 1, duration: 0.55 }, t.outroStart + 0.65);
+        timeline.to(".scene-outro .memory-card", { scale: 1.018, duration: Math.max(1, t.outroEnd - t.outroStart - 1), ease: "sine.inOut" }, t.outroStart + 0.9);
+
+        data.captions.forEach((caption, index) => {
+          const selector = "#caption-" + index;
+          timeline.set(selector, { opacity: 0 }, Math.max(0, caption.start - 0.01));
+          timeline.to(selector, { opacity: 1, y: 0, duration: 0.16, ease: "power2.out" }, caption.start);
+          timeline.to(selector, { opacity: 0, duration: 0.12, ease: "power2.in" }, Math.max(caption.start, caption.end - 0.12));
+          timeline.set(selector, { opacity: 0 }, caption.end);
+        });
+
+        window.__timelines[data.meta.id] = timeline;
+      </script>
+    </div>
+  </body>
+</html>

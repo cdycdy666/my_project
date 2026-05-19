@@ -63,6 +63,7 @@ def run_pipeline(args: argparse.Namespace) -> None:
                         "status": outcome.result.status,
                         "summary": outcome.assessment.summary,
                         "recommendation": outcome.assessment.recommendation,
+                        "transcript_text": outcome.result.transcript_text,
                     },
                     "page_markdown": outcome.page_markdown,
                 },
