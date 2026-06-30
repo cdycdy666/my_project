@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
+import time
 import urllib.error
 import urllib.request
+from typing import Any
 
 
 SYSTEM_PROMPT = """你是用户的个人处境知识库整理助手。
@@ -48,7 +50,7 @@ SYSTEM_PROMPT = """你是用户的个人处境知识库整理助手。
 
 
 MORNING_PROMPT = """你是用户的个人处境知识库提醒助手。
-任务：基于用户最近几天的 Obsidian 记录，生成一条早上 9 点发给用户的飞书提醒。
+任务：基于用户最近几天的 Obsidian 记录，生成一条早上发给用户的飞书提醒。
 
 要求：
 - 中文。
@@ -95,6 +97,34 @@ def _extract_response_text(data: dict) -> str:
     return "\n".join(parts).strip()
 
 
+def _post_chat_completion(api_key: str, base_url: str, payload: dict[str, Any], timeout: int, retries: int) -> dict:
+    request = urllib.request.Request(
+        f"{base_url.rstrip('/')}/chat/completions",
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+
+    last_error: Exception | None = None
+    for attempt in range(retries + 1):
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="replace")
+            raise RuntimeError(f"LLM API failed: HTTP {exc.code} {body[:800]}") from exc
+        except (TimeoutError, urllib.error.URLError) as exc:
+            last_error = exc
+            if attempt >= retries:
+                break
+            time.sleep(2 * (attempt + 1))
+
+    raise RuntimeError(f"LLM API failed after {retries + 1} attempts: {last_error}") from last_error
+
+
 def summarize_daily_records(api_key: str, base_url: str, model: str, date_text: str, raw_records: str) -> str:
     if not api_key:
         raise RuntimeError("LLM_API_KEY is not configured")
@@ -113,22 +143,7 @@ def summarize_daily_records(api_key: str, base_url: str, model: str, date_text: 
         ],
         "temperature": 0.2,
     }
-    request = urllib.request.Request(
-        f"{base_url.rstrip('/')}/chat/completions",
-        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
-
-    try:
-        with urllib.request.urlopen(request, timeout=60) as response:
-            data = json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        body = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"LLM API failed: HTTP {exc.code} {body[:800]}") from exc
+    data = _post_chat_completion(api_key, base_url, payload, timeout=180, retries=2)
 
     text = _extract_response_text(data)
     if not text:
@@ -148,22 +163,7 @@ def generate_morning_message(api_key: str, base_url: str, model: str, recent_con
         ],
         "temperature": 0.7,
     }
-    request = urllib.request.Request(
-        f"{base_url.rstrip('/')}/chat/completions",
-        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
-
-    try:
-        with urllib.request.urlopen(request, timeout=60) as response:
-            data = json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        body = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"LLM API failed: HTTP {exc.code} {body[:800]}") from exc
+    data = _post_chat_completion(api_key, base_url, payload, timeout=90, retries=1)
 
     text = _extract_response_text(data).replace("\n", " ").strip()
     if not text:
@@ -195,22 +195,7 @@ def generate_record_feedback(
         ],
         "temperature": 0.5,
     }
-    request = urllib.request.Request(
-        f"{base_url.rstrip('/')}/chat/completions",
-        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
-
-    try:
-        with urllib.request.urlopen(request, timeout=30) as response:
-            data = json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        body = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"LLM API failed: HTTP {exc.code} {body[:800]}") from exc
+    data = _post_chat_completion(api_key, base_url, payload, timeout=45, retries=1)
 
     text = _extract_response_text(data).replace("\n", " ").strip()
     if not text:
