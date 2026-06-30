@@ -1,0 +1,4 @@
+interface:
+  display_name: "AI Context Feedback Loop"
+  short_description: "Design AI memory and feedback loops"
+  default_prompt: "Use this skill to design a low-friction AI context knowledge loop with capture, feedback, summarization, and reuse."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Lightweight Bot Automation"
+  short_description: "Build lightweight bot automations"
+  default_prompt: "Use this skill to design a lightweight chat-bot automation with realtime capture, async feedback, scheduled batch processing, and Git-backed persistence."

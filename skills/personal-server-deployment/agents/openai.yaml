@@ -1,0 +1,4 @@
+interface:
+  display_name: "Personal Server Deployment"
+  short_description: "Deploy personal automations to a server"
+  default_prompt: "Use this skill to deploy a personal automation service to a Linux server with systemd, cron, environment configuration, logging, and Git backup."

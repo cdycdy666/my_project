@@ -1,0 +1,4 @@
+interface:
+  display_name: "Feishu Bot Configuration"
+  short_description: "Configure Feishu custom bots"
+  default_prompt: "Use this skill to configure a Feishu custom bot, including permissions, event subscription, long connection, message sending, and duplicate-event handling."
