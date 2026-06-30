@@ -3,6 +3,7 @@ Thumbs.db
 
 __pycache__/
 .pycache/
+.venv/
 *.py[cod]
 .pytest_cache/
 .mypy_cache/
