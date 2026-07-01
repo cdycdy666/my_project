@@ -96,6 +96,18 @@ class FeishuObsidianService:
             return
         logging.info("sent reply to chat_id=%s", chat_id)
 
+    def send_text_chunks(self, chat_id: str, text: str, chunk_size: int = 3000) -> None:
+        content = text.strip()
+        if not content:
+            return
+
+        chunks = [content[index : index + chunk_size] for index in range(0, len(content), chunk_size)]
+        for index, chunk in enumerate(chunks, start=1):
+            if len(chunks) > 1:
+                self.send_text(chat_id, f"整理内容 {index}/{len(chunks)}\n{chunk}")
+            else:
+                self.send_text(chat_id, chunk)
+
     def handle_message(self, data: Any) -> None:
         event = _get(data, "event")
         message = _get(event, "message")

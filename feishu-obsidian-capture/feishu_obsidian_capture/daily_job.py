@@ -48,6 +48,7 @@ def run_daily_summary(date_text: str | None = None, notify: bool = True) -> Path
     if notify:
         service.send_text(
             chat_id,
-            f"今日整理完成。\n原始记录：{inbox_path.name}\nDaily note：{daily_path.name}",
+            f"今日整理完成。\n原始记录：{inbox_path.name}\nDaily note：{daily_path.name}\n\n下面是整理后的内容：",
         )
+        service.send_text_chunks(chat_id, summary)
     return daily_path
