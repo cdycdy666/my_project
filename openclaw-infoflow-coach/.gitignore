@@ -1,0 +1,17 @@
+.DS_Store
+__pycache__/
+.pycache/
+*.pyc
+.venv/
+venv/
+
+.env
+.env.*
+!.env.example
+
+openclaw-infoflow-logs/
+openclaw-infoflow-advice/
+*.log
+
+feishu-communication-coach/references/*
+!feishu-communication-coach/references/README.md
