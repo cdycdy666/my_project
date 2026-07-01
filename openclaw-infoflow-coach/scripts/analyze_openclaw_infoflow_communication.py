@@ -27,7 +27,9 @@ DEFAULT_REFERENCE_CARD_PATH = COACH_DIR / "reference-notes/communication-princip
 DEFAULT_OPENCLAW_CONFIG = Path.home() / ".openclaw/openclaw.json"
 DEFAULT_GROUP_ID = "12829093"
 DEFAULT_FOCUS_USERS = ("chendingyu", "linbeike")
-CHAT_LINE_RE = re.compile(r"^- \*\*(?P<time>\d{2}:\d{2}:\d{2}) (?P<speaker>[^*]+)\*\*：(?P<body>.*)$")
+CHAT_LINE_RE = re.compile(
+    r"^- \*\*(?P<time>(?:\d{4}-\d{2}-\d{2}\s+)?\d{2}:\d{2}:\d{2}) (?P<speaker>[^*]+)\*\*：(?P<body>.*)$"
+)
 
 sys.path.insert(0, str(COACH_DIR))
 

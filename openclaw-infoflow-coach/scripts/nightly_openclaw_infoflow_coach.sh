@@ -6,7 +6,7 @@ ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 DATE_LABEL="${1:-$(date +%F)}"
 PYTHON_BIN="${PYTHON_BIN:-/usr/bin/python3}"
 
-"${PYTHON_BIN}" "${ROOT}/scripts/export_openclaw_infoflow_logs.py" --date "${DATE_LABEL}"
+"${PYTHON_BIN}" "${ROOT}/scripts/export_openclaw_infoflow_logs.py" --date "${DATE_LABEL}" --window-hours 24
 "${PYTHON_BIN}" "${ROOT}/scripts/analyze_openclaw_infoflow_communication.py" \
   --date "${DATE_LABEL}" \
   --group-id "12829093" \

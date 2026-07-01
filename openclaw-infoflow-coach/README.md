@@ -7,7 +7,7 @@
 - 只分析指定如流群：`12829093`
 - 重点关注：`chendingyu` 和 `linbeike`
 - 白天由 OpenClaw 负责群聊接入和即时回复
-- 晚上由脚本导出当天记录、调用大模型分析、保存建议并发回群
+- 每天 20:00 由脚本导出过去 24 小时记录、调用大模型分析、保存建议并发回群
 
 ## 目录结构
 
@@ -52,10 +52,10 @@ feishu-communication-coach/
 
 如果不希望脚本读取 `~/.openclaw/openclaw.json` 里的模型配置，可以复制 `.env.example` 为 `.env` 后填写 `LLM_*`。
 
-## 手动导出当天记录
+## 手动导出过去 24 小时记录
 
 ```bash
-python3 scripts/export_openclaw_infoflow_logs.py --date "$(date +%F)"
+python3 scripts/export_openclaw_infoflow_logs.py --date "$(date +%F)" --window-hours 24
 ```
 
 输出：
@@ -99,7 +99,7 @@ python3 scripts/analyze_openclaw_infoflow_communication.py \
 bash scripts/install_openclaw_infoflow_log_exporter.sh
 ```
 
-当前默认每天 `20:00` 执行：
+当前默认每天 `20:00` 执行，分析窗口是执行时刻往前 24 小时：
 
 ```text
 scripts/nightly_openclaw_infoflow_coach.sh
@@ -107,7 +107,7 @@ scripts/nightly_openclaw_infoflow_coach.sh
 
 ## 核心分析逻辑
 
-分析脚本会先构造重点聊天记录，只保留重点对象的发言；完整背景记录只作为上下文参考。
+导出脚本会先生成一个以当天日期命名的 Markdown 文件，但文件内容不是自然日 00:00 到 20:00，而是过去 24 小时窗口。分析脚本会先构造重点聊天记录，只保留重点对象的发言；完整背景记录只作为上下文参考。
 
 如果一天里有多个不相关话题，模型会先做话题分组，再挑 1-2 个最有沟通价值的话题深入分析，避免把一天的流水账平均点评。
 

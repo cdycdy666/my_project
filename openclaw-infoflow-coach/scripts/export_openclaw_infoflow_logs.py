@@ -6,7 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +36,13 @@ def parse_args() -> argparse.Namespace:
         description="Export local OpenClaw InfoFlow task JSON files to daily Markdown logs."
     )
     parser.add_argument("--date", help="Date to export in YYYY-MM-DD format. Defaults to all dates.")
+    parser.add_argument(
+        "--window-hours",
+        type=float,
+        help="Export messages from the last N hours ending now. Still writes to --date output file.",
+    )
+    parser.add_argument("--since", help="Inclusive window start timestamp, ISO format.")
+    parser.add_argument("--until", help="Exclusive window end timestamp, ISO format. Defaults to now for windows.")
     parser.add_argument("--tasks-dir", type=Path, default=DEFAULT_TASKS_DIR)
     parser.add_argument("--sessions-dir", type=Path, default=DEFAULT_SESSIONS_DIR)
     parser.add_argument("--gateway-log-dir", type=Path, default=DEFAULT_GATEWAY_LOG_DIR)
@@ -57,6 +64,59 @@ def parse_time(value: str | None) -> datetime:
         return datetime.fromisoformat(normalized)
     except ValueError:
         return datetime.min.replace(tzinfo=timezone.utc)
+
+
+def parse_window_time(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    normalized = value.replace("Z", "+00:00")
+    try:
+        dt = datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        return dt.astimezone()
+    return dt
+
+
+def resolve_time_window(
+    *,
+    window_hours: float | None,
+    since_value: str | None,
+    until_value: str | None,
+) -> tuple[datetime | None, datetime | None]:
+    until = parse_window_time(until_value) or datetime.now().astimezone()
+    since = parse_window_time(since_value)
+    if window_hours is not None:
+        since = until - timedelta(hours=window_hours)
+    if since is None and until_value is None:
+        until = None
+    return since, until
+
+
+def in_time_window(
+    value: str | None,
+    since: datetime | None,
+    until: datetime | None,
+) -> bool:
+    if since is None and until is None:
+        return True
+    dt = parse_time(value)
+    if dt == datetime.min.replace(tzinfo=timezone.utc):
+        return False
+    if since is not None and dt < since:
+        return False
+    if until is not None and dt >= until:
+        return False
+    return True
+
+
+def window_label(since: datetime | None, until: datetime | None) -> str:
+    if since is None and until is None:
+        return "全部"
+    since_text = since.astimezone().strftime("%Y-%m-%d %H:%M:%S %Z") if since else "开始"
+    until_text = until.astimezone().strftime("%Y-%m-%d %H:%M:%S %Z") if until else "现在"
+    return f"{since_text} - {until_text}"
 
 
 def local_time_label(value: str | None) -> str:
@@ -326,6 +386,8 @@ def collect_session_messages(
     sessions_dir: Path,
     date_label: str | None = None,
     group_ids: set[str] | None = None,
+    since: datetime | None = None,
+    until: datetime | None = None,
 ) -> list[dict[str, str]]:
     if not sessions_dir.exists():
         return []
@@ -378,7 +440,9 @@ def collect_session_messages(
                     continue
                 if group_ids is not None and record_group_id(record) not in group_ids:
                     continue
-                if date_label and record["date"] != date_label:
+                if date_label and since is None and until is None and record["date"] != date_label:
+                    continue
+                if not in_time_window(record["time"], since, until):
                     continue
                 messages.append(record)
 
@@ -389,12 +453,14 @@ def collect_gateway_event_messages(
     gateway_log_dir: Path,
     date_label: str | None = None,
     group_ids: set[str] | None = None,
+    since: datetime | None = None,
+    until: datetime | None = None,
 ) -> list[dict[str, str]]:
     if not gateway_log_dir.exists():
         return []
 
     paths = sorted(gateway_log_dir.glob("openclaw-*.log"))
-    if date_label:
+    if date_label and since is None and until is None:
         paths = [path for path in paths if date_label in path.name]
 
     messages: list[dict[str, str]] = []
@@ -469,7 +535,9 @@ def collect_gateway_event_messages(
                 "eventtype": event_type,
                 "message_id": message_id,
             }
-            if date_label and record["date"] != date_label:
+            if date_label and since is None and until is None and record["date"] != date_label:
+                continue
+            if not in_time_window(record["time"], since, until):
                 continue
             messages.append(record)
 
@@ -583,7 +651,11 @@ def summarize_task(task: dict[str, Any]) -> str:
 
 def summarize_message(record: dict[str, str]) -> str:
     dt = parse_time(record.get("time"))
-    time = "unknown" if dt == datetime.min.replace(tzinfo=timezone.utc) else dt.astimezone().strftime("%H:%M:%S")
+    time = (
+        "unknown"
+        if dt == datetime.min.replace(tzinfo=timezone.utc)
+        else dt.astimezone().strftime("%Y-%m-%d %H:%M:%S")
+    )
     sender = "机器人" if record.get("role") == "assistant" else record.get("sender") or "-"
     body = record.get("body", "").strip()
     if not body:
@@ -597,8 +669,14 @@ def message_time_range(messages: list[dict[str, str]]) -> str:
     times = [time for time in times if time != datetime.min.replace(tzinfo=timezone.utc)]
     if not times:
         return "无"
-    start = min(times).astimezone().strftime("%H:%M:%S")
-    end = max(times).astimezone().strftime("%H:%M:%S")
+    start_dt = min(times).astimezone()
+    end_dt = max(times).astimezone()
+    if start_dt.date() == end_dt.date():
+        start = start_dt.strftime("%Y-%m-%d %H:%M:%S")
+        end = end_dt.strftime("%H:%M:%S")
+    else:
+        start = start_dt.strftime("%Y-%m-%d %H:%M:%S")
+        end = end_dt.strftime("%Y-%m-%d %H:%M:%S")
     return f"{start} - {end}"
 
 
@@ -620,12 +698,15 @@ def render_day(
     tasks: list[dict[str, Any]],
     messages: list[dict[str, str]],
     group_ids: set[str] | None = None,
+    since: datetime | None = None,
+    until: datetime | None = None,
 ) -> str:
     group_label = ", ".join(sorted(group_ids)) if group_ids else "全部"
     lines = [
         f"# 如流群聊记录 - {date_label}",
         "",
         f"群聊：`{group_label}`",
+        f"导出窗口：`{window_label(since, until)}`",
         f"记录时间范围：`{message_time_range(messages)}`（本地时间，仅代表 OpenClaw 已捕获到的消息）",
         f"消息数：{len(messages)}",
         "",
@@ -646,18 +727,20 @@ def export_date(
     output_dir: Path,
     date_label: str,
     group_ids: set[str] | None = None,
+    since: datetime | None = None,
+    until: datetime | None = None,
 ) -> Path | None:
     day_dir = tasks_dir / date_label
     messages = dedupe_messages(
-        collect_gateway_event_messages(gateway_log_dir, date_label, group_ids)
-        + collect_session_messages(sessions_dir, date_label, group_ids)
+        collect_gateway_event_messages(gateway_log_dir, date_label, group_ids, since, until)
+        + collect_session_messages(sessions_dir, date_label, group_ids, since, until)
     )
-    tasks = collect_tasks(day_dir, group_ids) if day_dir.exists() else []
+    tasks = collect_tasks(day_dir, group_ids) if day_dir.exists() and since is None and until is None else []
     if not tasks and not messages:
         return None
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"{date_label}.md"
-    output_path.write_text(render_day(date_label, tasks, messages, group_ids), encoding="utf-8")
+    output_path.write_text(render_day(date_label, tasks, messages, group_ids, since, until), encoding="utf-8")
     return output_path
 
 
@@ -688,9 +771,14 @@ def main() -> int:
     gateway_log_dir: Path = args.gateway_log_dir.expanduser()
     output_dir: Path = args.output_dir.expanduser()
     group_ids = normalize_group_ids(args.group_id)
+    since, until = resolve_time_window(
+        window_hours=args.window_hours,
+        since_value=args.since,
+        until_value=args.until,
+    )
 
     if args.date:
-        exported = export_date(tasks_dir, sessions_dir, gateway_log_dir, output_dir, args.date, group_ids)
+        exported = export_date(tasks_dir, sessions_dir, gateway_log_dir, output_dir, args.date, group_ids, since, until)
         if not exported:
             print(f"No InfoFlow records for {args.date}: {tasks_dir / args.date}")
             return 0
