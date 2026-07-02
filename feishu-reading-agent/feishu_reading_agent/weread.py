@@ -444,6 +444,7 @@ def fetch_verified_materials_context(
     queries: list[str],
     max_queries: int = 4,
     max_books_per_query: int = 1,
+    phase: str = "initial",
     trace: InteractionTrace | None = None,
 ) -> str:
     chunks: list[str] = []
@@ -451,6 +452,7 @@ def fetch_verified_materials_context(
     if trace:
         trace.event(
             "material_verification_start",
+            phase=phase,
             queries=queries,
             max_queries=max_queries,
             max_books_per_query=max_books_per_query,

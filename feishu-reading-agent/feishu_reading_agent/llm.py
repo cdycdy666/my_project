@@ -31,12 +31,17 @@ READING_COACH_PROMPT = """你是用户的处境驱动读书智能体。
 - 如果书架外有更合适的书、文章、章节、概念或阅读主题，可以直接推荐并标注“书架外”；不要假装它已经在用户书架里。
 - 书架外推荐不能只给书名。必须尽量精确到章节、小节、概念、关键词或可搜索短语，例如“《幸福的婚姻》第 5 章：关注对方的情感需求”“搜索 John Gottman bids for connection”“只看《打造第二大脑》里 Organize for action / PARA 的介绍”。
 - 如果无法可靠确定章节号，不要编造章节号；改为给出可搜索的章节名、概念名或关键词，并说明“先搜这个词，看 10-15 分钟的介绍即可”。
+- 最终回复必须优先从“已验证材料上下文”里选择材料。系统会在最终回复前做一次补充检索，所以最终阶段不要再临时引入新的书名、作者、概念或关键词。
+- 如果某个书名、作者、概念或关键词没有出现在用户消息、微信读书上下文或“已验证材料上下文”里，不要把它作为正式推荐对象。
+- 最终回复必须服从“候选材料排序上下文”。如果排序上下文给出 primary，就优先推荐 primary；如果 should_output_count 为 1，不要输出方案 B。
+- 如果排序上下文把某个候选标为 extension，只能作为一句延伸提醒，不能展开成完整方案。
 - 涉及具体书名、章节、篇章位置时，必须优先依据“已验证材料上下文”。如果已验证材料上下文没有对应目录，不要编造章节号或章节名。
 - 如果某个推荐来自模型常识但未被目录验证，必须降级成“关键词/概念搜索”，不要说“第几章”。
 - “已验证材料上下文”不是全文。目录只能证明位置存在；热门划线、公开点评、个人划线/想法只能作为片段证据；公开点评是他人观点，不等于原文结论。
 - 推荐具体章节时，必须区分“目录已验证”和“内容片段佐证”。如果只有目录，没有热门划线/点评/个人笔记支撑，只能说“从目录看这个位置可能相关，正文未验证”。
 - “目录已验证”不能单独作为内容结论依据。只要没有看到同一本书下方出现热门划线、公开点评、你的划线或你的想法，就必须在依据里写“正文未验证”。
 - 推荐具体观点或主题时，必须给出证据等级：`目录已验证`、`热门划线佐证`、`公开点评佐证`、`你的划线/想法佐证`、`正文未验证，仅建议关键词搜索` 之一或多个。
+- 如果核心推荐概念本身没有出现在内容片段证据里，即使同一本书有热门划线，也必须在依据里写“核心概念正文未验证”。
 - 如果证据不足，不要强行推荐具体章节；改成“搜索关键词/概念，先看 10-15 分钟”。
 - 书架外推荐要说明为什么值得现在读，并给出一个低门槛可执行动作，例如“搜索这个关键词”“先读导言”“只看某一章的小节”“找一篇介绍文章”。
 - 输出里要弱化“任务感”，强调“只需 10-20 分钟”“读一小段”“带着一个问题看”。
@@ -74,6 +79,80 @@ MATERIAL_QUERY_PROMPT = """你是读书推荐的材料检索规划器。
 - 优先选择能帮助验证书名、章节目录或关键概念的 query。
 - 不要输出空泛词，比如“沟通”“知识管理”；要尽量具体。
 """
+
+
+SUPPLEMENTAL_QUERY_PROMPT = """你是读书推荐的补检索检查器。
+任务：在最终回复之前，判断当前“已验证材料上下文”是否足够支撑最贴合用户处境的阅读建议。
+
+要求：
+- 只输出 JSON，不要解释。
+- JSON 格式：{"recommendation_direction":"一句话方向","extra_queries":["关键词1","关键词2"],"reason":"为什么需要或不需要补检索"}
+- 最多 2 个 extra_queries。
+- 如果最好的正式推荐会引入一个不在“已验证材料上下文”中的书名、作者、概念、理论、章节或关键词，必须把它放进 extra_queries。
+- 如果已验证材料已经足够，不要为了发散而补检索，extra_queries 输出空数组。
+- extra_queries 要具体，可包含中文名、英文名、作者+概念、书名+章节主题，例如“John Gottman bids for connection”“情感投标”“谦逊的问讯 过程导向式问讯”。
+- 不要输出已经在“已验证材料上下文”中明显出现过的 query。
+- 不要输出空泛词，比如“沟通”“亲密关系”“知识管理”。
+- 这个步骤不是最终回复，不要给用户建议。
+"""
+
+
+CANDIDATE_RANKING_PROMPT = """你是读书推荐的候选材料排序器。
+任务：在初始验证和补充验证都完成后，对候选材料排序，并决定最终回复应该推荐几个阅读动作。
+
+要求：
+- 只输出 JSON，不要解释。
+- JSON 格式：
+{
+  "primary_problem": "用户此刻最需要解决的具体问题",
+  "candidates": [
+    {
+      "material": "书名/章节/概念/关键词",
+      "solves": "它解决什么问题",
+      "fit_score": 1-10,
+      "evidence_level": "目录已验证/热门划线佐证/公开点评佐证/你的划线或想法佐证/正文未验证，仅建议关键词搜索",
+      "reading_cost": "低/中/高",
+      "recommendation": "primary/secondary/extension/reject",
+      "reason": "排序理由"
+    }
+  ],
+  "should_output_count": 1,
+  "reason": "为什么最终应该输出 1 个或 2 个方案"
+}
+- 默认 should_output_count 为 1，优先只推荐一个最小阅读动作。
+- 只有两个候选分别解决两个非常强、非常不同、且都和用户当前消息直接相关的问题时，should_output_count 才能为 2。
+- 如果第二个候选只是工具设计、延伸思考、以后可读，标为 extension，不要让它成为完整方案 B。
+- 排序优先级：当前处境贴合度 > 可执行性/阅读门槛 > 证据等级 > 是否在书架内。
+- 书架内不是优先理由；书架外也不是扣分理由。
+- 如果补充验证材料更贴合当下问题，可以把它排为 primary，但必须在 reason 里说明它为何胜过初始候选。
+- 不要把没有出现在“已验证材料上下文”中的材料列入 candidates。
+- 不要使用微信读书书架清单里的其他书作为候选；书架只能帮助判断书架内/外，不能绕过验证。
+- material 字段必须复制或紧贴“已验证材料上下文”中的书名、章节名、概念名或 query，不要改写成上下文里没有出现过的材料。
+- evidence_level 必须诚实。没有全文时要写“正文未验证”；只有目录时不能说内容已验证。
+- candidates 最多 4 个。
+"""
+
+
+def _strip_json_fence(text: str) -> str:
+    content = text.strip()
+    if content.startswith("```"):
+        content = content.strip("`").strip()
+        if content.startswith("json"):
+            content = content[4:].strip()
+    return content
+
+
+def _dedupe_queries(raw_queries: Any, limit: int) -> list[str]:
+    if not isinstance(raw_queries, list):
+        return []
+
+    queries: list[str] = []
+    for item in raw_queries:
+        if isinstance(item, str) and item.strip() and item.strip() not in queries:
+            queries.append(item.strip())
+        if len(queries) >= limit:
+            break
+    return queries
 
 
 def _extract_response_text(data: dict) -> str:
@@ -236,6 +315,7 @@ def generate_reading_reply(
     personal_context: str,
     weread_context: str,
     verified_materials_context: str = "",
+    material_ranking_context: str = "",
     trace: InteractionTrace | None = None,
 ) -> str:
     if not api_key:
@@ -251,7 +331,8 @@ def generate_reading_reply(
                     f"用户消息：\n{user_message.strip()}\n\n"
                     f"个人处境上下文：\n{personal_context.strip()[-14000:]}\n\n"
                     f"微信读书上下文：\n{weread_context.strip()[-7000:]}\n\n"
-                    f"已验证材料上下文，可为空：\n{verified_materials_context.strip()[-12000:]}"
+                    f"已验证材料上下文，可为空：\n{verified_materials_context.strip()[-12000:]}\n\n"
+                    f"候选材料排序上下文，可为空：\n{material_ranking_context.strip()[-5000:]}"
                 ),
             },
         ],
@@ -270,6 +351,7 @@ def generate_reading_reply(
             "personal_context_chars": len(personal_context),
             "weread_context_chars": len(weread_context),
             "verified_materials_context_chars": len(verified_materials_context),
+            "material_ranking_context_chars": len(material_ranking_context),
         },
     )
 
@@ -324,26 +406,144 @@ def generate_material_queries(
         },
     )
 
-    text = _extract_response_text(data).strip()
-    if text.startswith("```"):
-        text = text.strip("`").strip()
-        if text.startswith("json"):
-            text = text[4:].strip()
+    text = _strip_json_fence(_extract_response_text(data))
     try:
         parsed = json.loads(text)
     except json.JSONDecodeError:
         return []
 
-    raw_queries = parsed.get("queries") if isinstance(parsed, dict) else None
-    if not isinstance(raw_queries, list):
-        return []
-
-    queries: list[str] = []
-    for item in raw_queries:
-        if isinstance(item, str) and item.strip() and item.strip() not in queries:
-            queries.append(item.strip())
-        if len(queries) >= 4:
-            break
+    queries = _dedupe_queries(parsed.get("queries") if isinstance(parsed, dict) else None, limit=4)
     if trace:
         trace.event("material_queries", raw_text=text, queries=queries)
     return queries
+
+
+def generate_supplemental_material_queries(
+    api_key: str,
+    base_url: str,
+    model: str,
+    user_message: str,
+    personal_context: str,
+    weread_context: str,
+    verified_materials_context: str,
+    trace: InteractionTrace | None = None,
+) -> list[str]:
+    if not api_key or not verified_materials_context.strip():
+        return []
+
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": SUPPLEMENTAL_QUERY_PROMPT},
+            {
+                "role": "user",
+                "content": (
+                    f"用户消息：\n{user_message.strip()}\n\n"
+                    f"个人处境上下文：\n{personal_context.strip()[-8000:]}\n\n"
+                    f"微信读书上下文：\n{weread_context.strip()[-4000:]}\n\n"
+                    f"已验证材料上下文：\n{verified_materials_context.strip()[-10000:]}"
+                ),
+            },
+        ],
+        "temperature": 0.2,
+    }
+    data = _post_chat_completion(
+        api_key,
+        base_url,
+        payload,
+        timeout=60,
+        retries=1,
+        trace=trace,
+        purpose="supplemental_material_queries",
+        metadata={
+            "user_message": user_message.strip(),
+            "personal_context_chars": len(personal_context),
+            "weread_context_chars": len(weread_context),
+            "verified_materials_context_chars": len(verified_materials_context),
+        },
+    )
+
+    text = _strip_json_fence(_extract_response_text(data))
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        if trace:
+            trace.event("supplemental_material_queries", raw_text=text, queries=[], parse_error=True)
+        return []
+
+    queries = _dedupe_queries(parsed.get("extra_queries") if isinstance(parsed, dict) else None, limit=2)
+    queries = [query for query in queries if query not in verified_materials_context]
+    if trace:
+        trace.event(
+            "supplemental_material_queries",
+            raw_text=text,
+            queries=queries,
+            recommendation_direction=parsed.get("recommendation_direction") if isinstance(parsed, dict) else None,
+            reason=parsed.get("reason") if isinstance(parsed, dict) else None,
+        )
+    return queries
+
+
+def generate_material_ranking(
+    api_key: str,
+    base_url: str,
+    model: str,
+    user_message: str,
+    personal_context: str,
+    weread_context: str,
+    verified_materials_context: str,
+    trace: InteractionTrace | None = None,
+) -> str:
+    if not api_key or not verified_materials_context.strip():
+        return ""
+
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": CANDIDATE_RANKING_PROMPT},
+            {
+                "role": "user",
+                "content": (
+                    f"用户消息：\n{user_message.strip()}\n\n"
+                    f"个人处境上下文：\n{personal_context.strip()[-8000:]}\n\n"
+                    "注意：本排序步骤只能比较下面的已验证材料，不要从书架清单或模型常识中新增候选。\n\n"
+                    f"已验证材料上下文：\n{verified_materials_context.strip()[-12000:]}"
+                ),
+            },
+        ],
+        "temperature": 0.2,
+    }
+    data = _post_chat_completion(
+        api_key,
+        base_url,
+        payload,
+        timeout=60,
+        retries=1,
+        trace=trace,
+        purpose="material_ranking",
+        metadata={
+            "user_message": user_message.strip(),
+            "personal_context_chars": len(personal_context),
+            "weread_context_chars": 0,
+            "verified_materials_context_chars": len(verified_materials_context),
+        },
+    )
+
+    text = _strip_json_fence(_extract_response_text(data))
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        if trace:
+            trace.event("material_ranking", raw_text=text, parse_error=True)
+        return ""
+
+    ranking_text = json.dumps(parsed, ensure_ascii=False, indent=2)
+    if trace:
+        trace.event(
+            "material_ranking",
+            raw_text=text,
+            ranking=parsed,
+            should_output_count=parsed.get("should_output_count") if isinstance(parsed, dict) else None,
+            primary_problem=parsed.get("primary_problem") if isinstance(parsed, dict) else None,
+        )
+    return ranking_text
