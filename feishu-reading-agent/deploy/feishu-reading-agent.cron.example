@@ -1,0 +1,5 @@
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# Weekly reading recommendation, every Saturday 09:30 CST.
+30 9 * * 6 root cd /opt/feishu-reading-agent && flock -n /tmp/feishu-reading-agent-weekly.lock .venv/bin/python scripts/send_once.py >> /opt/feishu-reading-agent/logs/weekly.log 2>&1

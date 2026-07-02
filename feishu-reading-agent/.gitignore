@@ -1,0 +1,9 @@
+.venv/
+.pycache/
+__pycache__/
+*.pyc
+logs/*.log
+# Keep trace JSONL files trackable during the early tuning phase.
+!logs/traces/
+!logs/traces/*.jsonl
+state.json

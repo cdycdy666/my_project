@@ -1,0 +1,17 @@
+[Unit]
+Description=Feishu Reading Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/feishu-reading-agent
+ExecStart=/opt/feishu-reading-agent/.venv/bin/python /opt/feishu-reading-agent/run.py
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+StandardOutput=append:/opt/feishu-reading-agent/logs/service.log
+StandardError=append:/opt/feishu-reading-agent/logs/service.err.log
+
+[Install]
+WantedBy=multi-user.target
