@@ -12,6 +12,15 @@
 - 如果涉及飞书机器人配置，优先参考 `skills/feishu-bot-configuration/SKILL.md`。
 - 如果涉及“聊天机器人 + 定时任务 + LLM + 文件沉淀”，优先参考 `skills/lightweight-bot-automation/SKILL.md`。
 
+## AGENTS.md 更新原则
+
+- 只记录跨项目协作时稳定、反复会用到、容易搞混或可能造成损失的信息。
+- 优先写项目边界、部署位置、关键数据流、常用排查入口和提交/部署习惯。
+- 不写临时过程、一次性实验、单次 trace 结论或过细实现细节。
+- 详细架构、prompt 设计和运行说明放到各项目自己的 `README.md` 或项目文档里。
+- 新增长期项目、项目职责变化、部署路径变化、核心数据流变化、踩过且可能复发的坑时，再更新本文件。
+- 不写真实密钥、token、cookie、私人日志原文等敏感内容。
+
 ## 四个核心项目
 
 ### 1. Obsidian 个人处境知识库
@@ -170,12 +179,15 @@ feishu-reading-agent/
 
 ```text
 用户消息
-  -> 读取 personal-kb + 微信读书书架
-  -> 初始检索 query
+  -> 读取 PersonalContextBundle
+  -> 默认不读取微信读书书架
+  -> LLM 生成 material_queries
   -> 微信读书验证
-  -> 补检索判断
-  -> 微信读书补充验证
-  -> 候选材料排序
+  -> 根据 source_pages 回读少量 daily note 原文片段
+  -> LLM 做 evidence_aware_material_scoring
+  -> LLM 服从打分结果生成最终回复
+  -> final_reply_material_check 校验是否引入未验证材料
+  -> 如有未验证材料，再补查并重写最终回复
   -> 最终飞书回复
 ```
 
@@ -186,7 +198,8 @@ feishu-reading-agent/
 - 具体章节必须先经微信读书目录验证。
 - 微信读书不提供全文；目录只能证明位置存在。
 - 热门划线、公开点评、个人笔记只是片段证据。
-- 最终回复必须服从候选材料排序结果；默认只输出 1 个方案。
+- 最终回复必须服从候选材料打分结果；默认只输出 1 个方案。
+- 默认不读取微信读书书架，除非用户明确要求从书架里推荐或检查书架。
 - 它只读 `personal-kb`，不写 daily note。
 
 常用命令：
@@ -272,10 +285,10 @@ systemctl is-active <service>
 阅读推荐质量问题：
 
 1. 查 trace 里的 `material_queries`。
-2. 查微信读书命中的书是否合理。
-3. 查 `supplemental_material_queries` 是否补到了关键概念。
-4. 查 `material_ranking` 是否只包含已验证材料。
-5. 查最终回复是否遵守 `should_output_count` 和证据等级。
+2. 查 `verified_materials_loaded` 里的微信读书命中是否合理。
+3. 查 `personal_evidence_context_loaded` 是否回读到了相关 daily note 原文片段。
+4. 查 `evidence_aware_material_scoring` 是否只基于已验证材料打分，并选出合理 primary。
+5. 查 `final_reply_material_check` 是否通过，最终回复是否遵守 `should_output_count` 和证据等级。
 
 沟通教练质量问题：
 
