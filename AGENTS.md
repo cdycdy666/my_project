@@ -1,0 +1,285 @@
+# My Project Agent Guide
+
+这是给 Codex/Claude/其他编码智能体看的根目录操作手册。目标是防止多个个人自动化项目混在一起，降低每次接手时的上下文成本。
+
+## 总原则
+
+- 根目录统一配置文件是 `/Users/chendingyu/my_project/.env`，不要把真实密钥提交到 Git。
+- 不要混用不同飞书/如流机器人。先确认用户当前说的是哪个项目，再改代码或查日志。
+- 服务器主要是 `root@123.57.229.149`，长期服务通常部署在 `/opt/<project-name>`。
+- 本地仓库有很多未提交改动，提交时只 stage 当前任务相关文件。
+- 运行或部署前优先看对应项目 `README.md`。
+- 如果涉及飞书机器人配置，优先参考 `skills/feishu-bot-configuration/SKILL.md`。
+- 如果涉及“聊天机器人 + 定时任务 + LLM + 文件沉淀”，优先参考 `skills/lightweight-bot-automation/SKILL.md`。
+
+## 四个核心项目
+
+### 1. Obsidian 个人处境知识库
+
+目录：
+
+```text
+personal-kb/
+```
+
+用途：
+
+- 沉淀每天遇到的问题、处理过程、判断、判断依据、结果反馈和经验。
+- 给其他 Agent 提供“用户当前处境”的长期上下文。
+
+关键目录：
+
+```text
+personal-kb/10-daily/
+personal-kb/90-context/
+personal-kb/templates/
+```
+
+边界：
+
+- 它是知识库，不是服务代码。
+- 其他项目可以读取它作为上下文，但不要随意写入，除非任务明确要求写 daily note 或更新 context。
+
+常看文件：
+
+```text
+personal-kb/README.md
+personal-kb/90-context/
+```
+
+### 2. 飞书 -> Obsidian 自动记录服务
+
+目录：
+
+```text
+feishu-obsidian-capture/
+```
+
+服务器部署：
+
+```text
+/opt/feishu-obsidian-capture
+```
+
+用途：
+
+- 飞书机器人接收日常零散记录。
+- 即时给一点 LLM 反馈。
+- 晚上定时拉取/整理当天飞书记录。
+- 写入 `personal-kb/10-daily/YYYY/YYYY-MM-DD.md`。
+
+当前设计：
+
+- 常驻监听：接收飞书消息、保存原始记录、即时反馈。
+- 定时任务：早晨提醒、晚间整理、必要时补跑前一天。
+- 服务端是主要运行环境，本地主要用于开发和备份。
+
+重要边界：
+
+- 这个项目负责“记录和整理处境”。
+- 不负责读书推荐。
+- 不负责沟通教练分析。
+- 不要和 `feishu-reading-agent` 共用飞书 App 配置。
+
+常用检查：
+
+```bash
+ssh root@123.57.229.149 "systemctl status feishu-obsidian-capture.service --no-pager"
+ssh root@123.57.229.149 "tail -n 80 /opt/feishu-obsidian-capture/logs/service.err.log"
+```
+
+### 3. 如流 / OpenClaw 沟通教练
+
+主目录：
+
+```text
+openclaw-infoflow-coach/
+```
+
+运行数据目录：
+
+```text
+openclaw-infoflow-logs/
+openclaw-infoflow-advice/
+```
+
+用途：
+
+- OpenClaw 接入如流机器人。
+- 导出指定如流群聊记录。
+- 重点分析 `chendingyu` 和 `linbeike` 的沟通。
+- 每天 20:00 分析过去 24 小时，并把建议发回指定如流群。
+
+当前目标群：
+
+```text
+12829093
+```
+
+核心脚本：
+
+```text
+openclaw-infoflow-coach/scripts/export_openclaw_infoflow_logs.py
+openclaw-infoflow-coach/scripts/analyze_openclaw_infoflow_communication.py
+openclaw-infoflow-coach/scripts/nightly_openclaw_infoflow_coach.sh
+```
+
+参考资料：
+
+```text
+openclaw-infoflow-coach/feishu-communication-coach/reference-notes/
+openclaw-infoflow-coach/feishu-communication-coach/references/
+```
+
+重要边界：
+
+- 这是“沟通建议/关系互动复盘”项目，不是 Obsidian 记录服务。
+- 只分析指定群和重点对象，不要默认导出所有如流群。
+- `openclaw-infoflow-logs/` 和 `openclaw-infoflow-advice/` 是运行数据，是否提交要谨慎。
+
+常用命令：
+
+```bash
+cd /Users/chendingyu/my_project/openclaw-infoflow-coach
+python3 scripts/export_openclaw_infoflow_logs.py --date "$(date +%F)" --window-hours 24
+python3 scripts/analyze_openclaw_infoflow_communication.py --date "$(date +%F)" --group-id "12829093" --focus-user "chendingyu" --focus-user "linbeike"
+```
+
+### 4. 飞书阅读智能体
+
+目录：
+
+```text
+feishu-reading-agent/
+```
+
+服务器部署：
+
+```text
+/opt/feishu-reading-agent
+```
+
+用途：
+
+- 独立飞书读书机器人。
+- 读取 `personal-kb` 作为个人处境上下文。
+- 调用微信读书 skill/API 获取书架、搜索、目录、热门划线、公开点评、个人划线/想法。
+- 给出低门槛、处境驱动的阅读建议。
+
+当前推荐流程：
+
+```text
+用户消息
+  -> 读取 personal-kb + 微信读书书架
+  -> 初始检索 query
+  -> 微信读书验证
+  -> 补检索判断
+  -> 微信读书补充验证
+  -> 候选材料排序
+  -> 最终飞书回复
+```
+
+关键约束：
+
+- 推荐范围不局限书架。
+- 默认不推荐整本书，而是推荐 10-20 分钟的阅读动作。
+- 具体章节必须先经微信读书目录验证。
+- 微信读书不提供全文；目录只能证明位置存在。
+- 热门划线、公开点评、个人笔记只是片段证据。
+- 最终回复必须服从候选材料排序结果；默认只输出 1 个方案。
+- 它只读 `personal-kb`，不写 daily note。
+
+常用命令：
+
+```bash
+cd /Users/chendingyu/my_project/feishu-reading-agent
+./.venv/bin/python scripts/check_weread.py
+./.venv/bin/python scripts/chat_once.py 推荐阅读
+```
+
+服务器检查：
+
+```bash
+ssh root@123.57.229.149 "systemctl is-active feishu-reading-agent.service"
+ssh root@123.57.229.149 "tail -n 80 /opt/feishu-reading-agent/logs/traces/$(date +%F).jsonl"
+```
+
+重要边界：
+
+- 不修改 `feishu-obsidian-capture`。
+- 不写入 `personal-kb`。
+- 不把 `WEREAD_API_KEY`、飞书 secret、模型 key、`state.json`、`.env` 提交到 Git。
+
+## 不要混淆的项目关系
+
+```text
+personal-kb
+  -> 被 feishu-obsidian-capture 写入
+  -> 被 feishu-reading-agent 读取
+
+feishu-obsidian-capture
+  -> 飞书记录机器人
+  -> 写 Obsidian daily note
+
+feishu-reading-agent
+  -> 飞书读书机器人
+  -> 读 personal-kb + 微信读书
+  -> 不写 Obsidian
+
+openclaw-infoflow-coach
+  -> 如流/OpenClaw 沟通教练
+  -> 导出群聊并分析 chendingyu / linbeike
+  -> 和飞书记录机器人无关
+```
+
+## Git 和部署习惯
+
+- 根仓库远端是 GitHub private：`cdycdy666/my_project`。
+- 提交前先看：
+
+```bash
+git -C /Users/chendingyu/my_project status --short
+```
+
+- 只提交当前任务相关文件。不要顺手提交 `.env`、日志、运行状态、私人资料。
+- 服务部署到服务器后，至少做三件事：
+
+```bash
+python -m py_compile ...
+systemctl restart <service>
+systemctl is-active <service>
+```
+
+- 如果改了飞书机器人长连接服务，要用真实飞书消息或项目自带脚本验证一次。
+- 如果改了 LLM prompt 或检索逻辑，要查看 trace，而不是只看最终回复。
+
+## 常见排查路径
+
+飞书机器人没回复：
+
+1. 查服务是否 active。
+2. 查是否收到事件。
+3. 查是否被 `message_id` 去重。
+4. 查 LLM 调用是否卡住。
+5. 查发送消息接口是否成功。
+
+重复回复：
+
+1. 查是否有多个 listener 进程。
+2. 查同一个 `message_id` 是否出现多次。
+3. 查是否先去重再启动慢任务。
+
+阅读推荐质量问题：
+
+1. 查 trace 里的 `material_queries`。
+2. 查微信读书命中的书是否合理。
+3. 查 `supplemental_material_queries` 是否补到了关键概念。
+4. 查 `material_ranking` 是否只包含已验证材料。
+5. 查最终回复是否遵守 `should_output_count` 和证据等级。
+
+沟通教练质量问题：
+
+1. 确认分析窗口是过去 24 小时，不是自然日。
+2. 确认只分析群 `12829093`。
+3. 确认重点对象是 `chendingyu` 和 `linbeike`。
+4. 确认参考资料优先使用原则卡片，再使用完整参考库。

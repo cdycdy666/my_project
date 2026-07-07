@@ -1,6 +1,6 @@
 # Feishu Reading Agent
 
-一个独立的飞书读书智能体。它读取 `personal-kb` 里的个人处境作为重要参考，再结合微信读书书架等阅读线索，给出更贴近当前状态的低门槛阅读动作、陪读问题和读后沉淀提示。
+一个独立的飞书读书智能体。它读取 `personal-kb` 里的个人处境作为重要参考，再结合微信读书搜索、目录和必要时的书架线索，给出更贴近当前状态的低门槛阅读动作、陪读问题和读后沉淀提示。
 
 推荐范围不局限于微信读书书架。书架只是判断用户已有兴趣和可立即打开阅读内容的线索；如果书架外有更合适的书、文章、概念或阅读主题，智能体也可以推荐，并明确标注“书架外”。
 
@@ -18,6 +18,36 @@
 - `feishu-reading-agent`：读取处境，结合微信读书做阅读对话。
 
 它只读 `personal-kb`，不写入 daily note。除手动触发外，服务器上可以配置每周六定时主动发送一次读书建议。
+
+## 个人处境读取方式
+
+读书智能体采用一个轻量 GAM-lite 流程：
+
+```text
+用户消息
+  -> 读取 personal-kb/90-context/memory-index/*.json 轻量索引
+  -> 按用户消息选择相关日期
+  -> 读取 personal-kb/90-context/CURRENT_CONTEXT.md、PROFILE.md 等长期背景短摘
+  -> 生成结构化 PersonalContextBundle
+  -> 默认只附 source_pages，不回读 daily note 原文
+  -> 默认不读取微信读书书架
+  -> 让模型生成微信读书检索 query
+  -> 做微信读书搜索、目录和片段证据验证
+  -> 根据 source_pages 回读少量 daily note 关键原文片段
+  -> 让模型结合原文片段和已验证材料做处境证据打分
+  -> 让模型服从打分结果生成最终回复
+  -> 校验最终回复是否引入未验证材料；如有则补查并重写
+```
+
+生成或刷新 memory index：
+
+```bash
+python3 /Users/chendingyu/my_project/personal-kb/scripts/build_memory_index.py
+```
+
+这个索引只是帮助定位历史，不替代 daily note 原文。读书智能体默认使用摘要和来源引用，避免把整篇 daily note 原文塞进模型上下文；进入材料打分阶段时，会按 `source_pages` 回读 1-2 篇 daily note 的关键段落，如判断、依据、沉淀、open loop，用于判断候选材料和真实处境的贴合度。
+
+默认的“推荐阅读”不会读取微信读书书架，避免书架噪音牵引推荐方向。只有用户明确说“书架”“从我书架里推荐”“已有的书里有没有适合的”时，才会读取书架。
 
 ## 配置
 

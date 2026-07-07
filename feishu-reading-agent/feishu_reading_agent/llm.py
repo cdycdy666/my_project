@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import socket
 import time
 import urllib.error
 import urllib.request
@@ -19,6 +20,7 @@ READING_COACH_PROMPT = """你是用户的处境驱动读书智能体。
 - 语气自然、克制、具体，不要鸡汤。
 - 只基于输入上下文判断用户处境，不要编造用户经历、阅读数据或书架状态。
 - 微信读书书架只是线索，不是推荐范围限制，也不是推荐优先级；最重要的是推荐是否贴合用户当前处境。
+- 微信读书上下文可能明确说明“本次未读取书架”。这种情况下，不要推断用户书架里有哪些书，也不要把任何书标成“书架内”。
 - 默认不要推荐“读完整本书”；书只是材料来源，不是任务本身。
 - 每次优先推荐一个低门槛阅读动作：一章、一节、一段、一个概念、一个关键词搜索、一个 10-20 分钟的问题式阅读任务。
 - 默认不要因为某本书已经在书架里，就优先推荐它。
@@ -31,10 +33,11 @@ READING_COACH_PROMPT = """你是用户的处境驱动读书智能体。
 - 如果书架外有更合适的书、文章、章节、概念或阅读主题，可以直接推荐并标注“书架外”；不要假装它已经在用户书架里。
 - 书架外推荐不能只给书名。必须尽量精确到章节、小节、概念、关键词或可搜索短语，例如“《幸福的婚姻》第 5 章：关注对方的情感需求”“搜索 John Gottman bids for connection”“只看《打造第二大脑》里 Organize for action / PARA 的介绍”。
 - 如果无法可靠确定章节号，不要编造章节号；改为给出可搜索的章节名、概念名或关键词，并说明“先搜这个词，看 10-15 分钟的介绍即可”。
-- 最终回复必须优先从“已验证材料上下文”里选择材料。系统会在最终回复前做一次补充检索，所以最终阶段不要再临时引入新的书名、作者、概念或关键词。
+- 最终回复必须优先从“已验证材料上下文”里选择材料。最终阶段不要临时引入新的书名、作者、概念或关键词；系统会在回复后做材料校验，发现未验证材料时才补查并重写。
 - 如果某个书名、作者、概念或关键词没有出现在用户消息、微信读书上下文或“已验证材料上下文”里，不要把它作为正式推荐对象。
-- 最终回复必须服从“候选材料排序上下文”。如果排序上下文给出 primary，就优先推荐 primary；如果 should_output_count 为 1，不要输出方案 B。
-- 如果排序上下文把某个候选标为 extension，只能作为一句延伸提醒，不能展开成完整方案。
+- 如果没有候选材料打分上下文，仍然只能从“已验证材料上下文”中选择正式推荐对象；不要用模型常识临时新增更好的书名、作者、理论、概念或关键词。
+- 最终回复必须服从“候选材料打分上下文”。如果打分上下文给出 primary，就优先推荐 primary；如果 should_output_count 为 1，不要输出方案 B。
+- 如果打分上下文把某个候选标为 extension，只能作为一句延伸提醒，不能展开成完整方案。
 - 涉及具体书名、章节、篇章位置时，必须优先依据“已验证材料上下文”。如果已验证材料上下文没有对应目录，不要编造章节号或章节名。
 - 如果某个推荐来自模型常识但未被目录验证，必须降级成“关键词/概念搜索”，不要说“第几章”。
 - “已验证材料上下文”不是全文。目录只能证明位置存在；热门划线、公开点评、个人划线/想法只能作为片段证据；公开点评是他人观点，不等于原文结论。
@@ -81,55 +84,53 @@ MATERIAL_QUERY_PROMPT = """你是读书推荐的材料检索规划器。
 """
 
 
-SUPPLEMENTAL_QUERY_PROMPT = """你是读书推荐的补检索检查器。
-任务：在最终回复之前，判断当前“已验证材料上下文”是否足够支撑最贴合用户处境的阅读建议。
-
-要求：
-- 只输出 JSON，不要解释。
-- JSON 格式：{"recommendation_direction":"一句话方向","extra_queries":["关键词1","关键词2"],"reason":"为什么需要或不需要补检索"}
-- 最多 2 个 extra_queries。
-- 如果最好的正式推荐会引入一个不在“已验证材料上下文”中的书名、作者、概念、理论、章节或关键词，必须把它放进 extra_queries。
-- 如果已验证材料已经足够，不要为了发散而补检索，extra_queries 输出空数组。
-- extra_queries 要具体，可包含中文名、英文名、作者+概念、书名+章节主题，例如“John Gottman bids for connection”“情感投标”“谦逊的问讯 过程导向式问讯”。
-- 不要输出已经在“已验证材料上下文”中明显出现过的 query。
-- 不要输出空泛词，比如“沟通”“亲密关系”“知识管理”。
-- 这个步骤不是最终回复，不要给用户建议。
-"""
-
-
-CANDIDATE_RANKING_PROMPT = """你是读书推荐的候选材料排序器。
-任务：在初始验证和补充验证都完成后，对候选材料排序，并决定最终回复应该推荐几个阅读动作。
+EVIDENCE_AWARE_SCORING_PROMPT = """你是读书推荐的处境证据打分器。
+任务：结合 personal-kb 原文片段和微信读书已验证材料，对候选阅读材料打分，并选出一个最适合当前处境的 primary。
 
 要求：
 - 只输出 JSON，不要解释。
 - JSON 格式：
 {
-  "primary_problem": "用户此刻最需要解决的具体问题",
+  "primary_problem": "用户此刻最需要用阅读辅助解决的具体问题",
+  "primary": "最终最推荐的书名/章节/概念/关键词",
   "candidates": [
     {
       "material": "书名/章节/概念/关键词",
-      "solves": "它解决什么问题",
       "fit_score": 1-10,
-      "evidence_level": "目录已验证/热门划线佐证/公开点评佐证/你的划线或想法佐证/正文未验证，仅建议关键词搜索",
       "reading_cost": "低/中/高",
+      "evidence_level": "目录已验证/热门划线佐证/公开点评佐证/你的划线或想法佐证/正文未验证，仅建议关键词搜索",
+      "personal_evidence": "它和 personal-kb 原文片段中的哪个处境、判断或 open loop 对应",
       "recommendation": "primary/secondary/extension/reject",
-      "reason": "排序理由"
+      "reason": "一句话排序理由"
     }
   ],
   "should_output_count": 1,
-  "reason": "为什么最终应该输出 1 个或 2 个方案"
+  "reason": "为什么最终只输出 1 个或 2 个阅读动作"
 }
-- 默认 should_output_count 为 1，优先只推荐一个最小阅读动作。
+- 只能比较“已验证材料上下文”里出现过的候选材料，不要新增书名、作者、概念、理论、章节或关键词。
+- material 字段必须复制或紧贴“已验证材料上下文”中的书名、章节名、概念名或 query。
+- personal_evidence 必须来自“个人处境原文片段”或“个人处境摘要”，不要编造用户处境。
+- 默认 should_output_count 为 1，优先只推荐一个 10-20 分钟的最小阅读动作。
 - 只有两个候选分别解决两个非常强、非常不同、且都和用户当前消息直接相关的问题时，should_output_count 才能为 2。
-- 如果第二个候选只是工具设计、延伸思考、以后可读，标为 extension，不要让它成为完整方案 B。
 - 排序优先级：当前处境贴合度 > 可执行性/阅读门槛 > 证据等级 > 是否在书架内。
 - 书架内不是优先理由；书架外也不是扣分理由。
-- 如果补充验证材料更贴合当下问题，可以把它排为 primary，但必须在 reason 里说明它为何胜过初始候选。
-- 不要把没有出现在“已验证材料上下文”中的材料列入 candidates。
-- 不要使用微信读书书架清单里的其他书作为候选；书架只能帮助判断书架内/外，不能绕过验证。
-- material 字段必须复制或紧贴“已验证材料上下文”中的书名、章节名、概念名或 query，不要改写成上下文里没有出现过的材料。
 - evidence_level 必须诚实。没有全文时要写“正文未验证”；只有目录时不能说内容已验证。
 - candidates 最多 4 个。
+"""
+
+
+FINAL_REPLY_CHECK_PROMPT = """你是读书推荐的最终回复材料校验器。
+任务：检查最终回复是否引入了未被“已验证材料上下文”验证过的正式推荐对象。
+
+要求：
+- 只输出 JSON，不要解释。
+- JSON 格式：{"ok":true,"extra_queries":[],"reason":"一句话原因"}
+- 如果最终回复的“读什么”或核心建议里出现了新的书名、作者、理论、概念、章节、英文术语或关键词，而它没有出现在“已验证材料上下文”中，ok 必须为 false，并把需要补检索的词放入 extra_queries。
+- extra_queries 最多 2 个，要能直接用于微信读书搜索。
+- 如果最终回复只是在“依据”或“为什么现在”里复述个人处境，不算新材料。
+- 如果最终回复建议“关键词搜索”，这个关键词本身也必须出现在“已验证材料上下文”中；否则需要补检索。
+- 不要因为“依据：正文未验证”就放过未检索材料。未检索材料仍必须补检索。
+- 不要输出空泛词，比如“沟通”“亲密关系”“知识管理”。
 """
 
 
@@ -290,7 +291,7 @@ def _post_chat_completion(
                     error=f"HTTP {exc.code} {body[:800]}",
                 )
             raise RuntimeError(f"LLM API failed: HTTP {exc.code} {body[:800]}") from exc
-        except (TimeoutError, urllib.error.URLError) as exc:
+        except (TimeoutError, socket.timeout, urllib.error.URLError) as exc:
             last_error = exc
             if attempt >= retries:
                 break
@@ -315,7 +316,7 @@ def generate_reading_reply(
     personal_context: str,
     weread_context: str,
     verified_materials_context: str = "",
-    material_ranking_context: str = "",
+    material_scoring_context: str = "",
     trace: InteractionTrace | None = None,
 ) -> str:
     if not api_key:
@@ -332,7 +333,7 @@ def generate_reading_reply(
                     f"个人处境上下文：\n{personal_context.strip()[-14000:]}\n\n"
                     f"微信读书上下文：\n{weread_context.strip()[-7000:]}\n\n"
                     f"已验证材料上下文，可为空：\n{verified_materials_context.strip()[-12000:]}\n\n"
-                    f"候选材料排序上下文，可为空：\n{material_ranking_context.strip()[-5000:]}"
+                    f"候选材料打分上下文，可为空：\n{material_scoring_context.strip()[-5000:]}"
                 ),
             },
         ],
@@ -351,7 +352,7 @@ def generate_reading_reply(
             "personal_context_chars": len(personal_context),
             "weread_context_chars": len(weread_context),
             "verified_materials_context_chars": len(verified_materials_context),
-            "material_ranking_context_chars": len(material_ranking_context),
+            "material_scoring_context_chars": len(material_scoring_context),
         },
     )
 
@@ -362,6 +363,73 @@ def generate_reading_reply(
     if trace:
         trace.event("final_reply", chars=len(reply), text=reply)
     return reply
+
+
+def generate_final_reply_extra_queries(
+    api_key: str,
+    base_url: str,
+    model: str,
+    user_message: str,
+    final_reply: str,
+    verified_materials_context: str,
+    trace: InteractionTrace | None = None,
+) -> list[str]:
+    if not api_key or not final_reply.strip() or not verified_materials_context.strip():
+        return []
+
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": FINAL_REPLY_CHECK_PROMPT},
+            {
+                "role": "user",
+                "content": (
+                    f"用户消息：\n{user_message.strip()}\n\n"
+                    f"已验证材料上下文：\n{verified_materials_context.strip()[-12000:]}\n\n"
+                    f"最终回复：\n{final_reply.strip()}"
+                ),
+            },
+        ],
+        "temperature": 0.1,
+    }
+    data = _post_chat_completion(
+        api_key,
+        base_url,
+        payload,
+        timeout=45,
+        retries=1,
+        trace=trace,
+        purpose="final_reply_material_check",
+        metadata={
+            "user_message": user_message.strip(),
+            "final_reply_chars": len(final_reply),
+            "verified_materials_context_chars": len(verified_materials_context),
+        },
+    )
+
+    text = _strip_json_fence(_extract_response_text(data))
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        if trace:
+            trace.event("final_reply_material_check", raw_text=text, queries=[], parse_error=True)
+        return []
+
+    ok = bool(parsed.get("ok")) if isinstance(parsed, dict) else True
+    queries = []
+    if not ok:
+        queries = _dedupe_queries(parsed.get("extra_queries") if isinstance(parsed, dict) else None, limit=2)
+        queries = [query for query in queries if query not in verified_materials_context]
+
+    if trace:
+        trace.event(
+            "final_reply_material_check",
+            raw_text=text,
+            ok=ok,
+            queries=queries,
+            reason=parsed.get("reason") if isinstance(parsed, dict) else None,
+        )
+    return queries
 
 
 def generate_material_queries(
@@ -418,29 +486,30 @@ def generate_material_queries(
     return queries
 
 
-def generate_supplemental_material_queries(
+def generate_evidence_aware_material_scoring(
     api_key: str,
     base_url: str,
     model: str,
     user_message: str,
     personal_context: str,
-    weread_context: str,
+    personal_evidence_context: str,
     verified_materials_context: str,
     trace: InteractionTrace | None = None,
-) -> list[str]:
+) -> str:
     if not api_key or not verified_materials_context.strip():
-        return []
+        return ""
 
     payload = {
         "model": model,
         "messages": [
-            {"role": "system", "content": SUPPLEMENTAL_QUERY_PROMPT},
+            {"role": "system", "content": EVIDENCE_AWARE_SCORING_PROMPT},
             {
                 "role": "user",
                 "content": (
                     f"用户消息：\n{user_message.strip()}\n\n"
-                    f"个人处境上下文：\n{personal_context.strip()[-8000:]}\n\n"
-                    f"微信读书上下文：\n{weread_context.strip()[-4000:]}\n\n"
+                    f"个人处境摘要：\n{personal_context.strip()[-4000:]}\n\n"
+                    f"个人处境原文片段：\n{personal_evidence_context.strip()[-5000:]}\n\n"
+                    "注意：你只能比较下面的已验证材料，不要从模型常识、书架或个人处境中新增候选。\n\n"
                     f"已验证材料上下文：\n{verified_materials_context.strip()[-10000:]}"
                 ),
             },
@@ -454,11 +523,11 @@ def generate_supplemental_material_queries(
         timeout=60,
         retries=1,
         trace=trace,
-        purpose="supplemental_material_queries",
+        purpose="evidence_aware_material_scoring",
         metadata={
             "user_message": user_message.strip(),
             "personal_context_chars": len(personal_context),
-            "weread_context_chars": len(weread_context),
+            "personal_evidence_context_chars": len(personal_evidence_context),
             "verified_materials_context_chars": len(verified_materials_context),
         },
     )
@@ -468,82 +537,17 @@ def generate_supplemental_material_queries(
         parsed = json.loads(text)
     except json.JSONDecodeError:
         if trace:
-            trace.event("supplemental_material_queries", raw_text=text, queries=[], parse_error=True)
-        return []
-
-    queries = _dedupe_queries(parsed.get("extra_queries") if isinstance(parsed, dict) else None, limit=2)
-    queries = [query for query in queries if query not in verified_materials_context]
-    if trace:
-        trace.event(
-            "supplemental_material_queries",
-            raw_text=text,
-            queries=queries,
-            recommendation_direction=parsed.get("recommendation_direction") if isinstance(parsed, dict) else None,
-            reason=parsed.get("reason") if isinstance(parsed, dict) else None,
-        )
-    return queries
-
-
-def generate_material_ranking(
-    api_key: str,
-    base_url: str,
-    model: str,
-    user_message: str,
-    personal_context: str,
-    weread_context: str,
-    verified_materials_context: str,
-    trace: InteractionTrace | None = None,
-) -> str:
-    if not api_key or not verified_materials_context.strip():
+            trace.event("evidence_aware_material_scoring", raw_text=text, parse_error=True)
         return ""
 
-    payload = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": CANDIDATE_RANKING_PROMPT},
-            {
-                "role": "user",
-                "content": (
-                    f"用户消息：\n{user_message.strip()}\n\n"
-                    f"个人处境上下文：\n{personal_context.strip()[-8000:]}\n\n"
-                    "注意：本排序步骤只能比较下面的已验证材料，不要从书架清单或模型常识中新增候选。\n\n"
-                    f"已验证材料上下文：\n{verified_materials_context.strip()[-12000:]}"
-                ),
-            },
-        ],
-        "temperature": 0.2,
-    }
-    data = _post_chat_completion(
-        api_key,
-        base_url,
-        payload,
-        timeout=60,
-        retries=1,
-        trace=trace,
-        purpose="material_ranking",
-        metadata={
-            "user_message": user_message.strip(),
-            "personal_context_chars": len(personal_context),
-            "weread_context_chars": 0,
-            "verified_materials_context_chars": len(verified_materials_context),
-        },
-    )
-
-    text = _strip_json_fence(_extract_response_text(data))
-    try:
-        parsed = json.loads(text)
-    except json.JSONDecodeError:
-        if trace:
-            trace.event("material_ranking", raw_text=text, parse_error=True)
-        return ""
-
-    ranking_text = json.dumps(parsed, ensure_ascii=False, indent=2)
+    scoring_text = json.dumps(parsed, ensure_ascii=False, indent=2)
     if trace:
         trace.event(
-            "material_ranking",
+            "evidence_aware_material_scoring",
             raw_text=text,
-            ranking=parsed,
+            scoring=parsed,
+            primary=parsed.get("primary") if isinstance(parsed, dict) else None,
             should_output_count=parsed.get("should_output_count") if isinstance(parsed, dict) else None,
             primary_problem=parsed.get("primary_problem") if isinstance(parsed, dict) else None,
         )
-    return ranking_text
+    return scoring_text
