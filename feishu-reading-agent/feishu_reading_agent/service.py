@@ -137,7 +137,16 @@ class FeishuReadingService:
                 self.send_text(chat_id, "已绑定当前会话，后续读书智能体的主动消息可以发到这里。")
                 return
 
-            reply = self.agent.reply(text)
+            progress_sent = False
+
+            def send_initial_progress(_progress: str) -> None:
+                nonlocal progress_sent
+                if progress_sent:
+                    return
+                progress_sent = True
+                self.send_text(chat_id, "收到，我开始结合 personal-kb 和微信读书查材料，稍等一下。")
+
+            reply = self.agent.reply(text, progress_callback=send_initial_progress)
             self.send_text_chunks(chat_id, reply)
         except Exception as exc:
             logging.exception("reading message processing failed")
