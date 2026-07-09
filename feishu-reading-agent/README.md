@@ -78,7 +78,7 @@ READING_TRACE_LOG_DIR=/Users/chendingyu/my_project/feishu-reading-agent/logs/tra
 
 如果不配置 `READING_LLM_*`，会复用根 `.env` 里的 `LLM_*`。
 
-`READING_TRACE_LOG_ENABLED` 默认开启。追踪日志不会记录 API Key，会记录每次回复的 `trace_id`、用户消息、模型调用摘要、微信读书接口摘要、检索结果、证据上下文预览和最终回复，方便后续改进检索与提示词。
+`READING_TRACE_LOG_ENABLED` 默认开启。追踪日志不会记录 API Key，会记录每次回复的 `trace_id`、用户消息、完整 LLM messages/payload、模型回复、微信读书请求参数、微信读书完整响应、检索结果、证据上下文和最终回复，方便后续在 Agent Monitor 里复盘每个模块的输入输出。
 
 ## 本地安装
 
@@ -178,12 +178,12 @@ logs/traces/YYYY-MM-DD.jsonl
 tail -n 80 /opt/feishu-reading-agent/logs/traces/$(date +%F).jsonl
 ```
 
-初期为了分析检索词、证据链和回复质量，`logs/traces/*.jsonl` 可以提交到 private GitHub。它不包含 API Key，但会包含用户消息、检索词、证据上下文预览和最终回复，后续如果觉得敏感或量变大，可以再改为只在服务器保留。
+初期为了分析检索词、证据链和回复质量，`logs/traces/*.jsonl` 可以提交到 private GitHub。它不包含 API Key，但会包含用户消息、完整 prompt/messages、模型回复、微信读书响应、证据上下文和最终回复；量变大后可以定期清理或改为只在服务器保留。
 
 每行都有同一个 `trace_id`，可以串起：
 
 - `reply_start`：收到的用户消息
-- `llm_request` / `llm_response`：模型调用类型、模型名、输入长度、耗时
+- `llm_request` / `llm_response`：模型调用类型、模型名、完整 messages/payload、输入长度、耗时、模型回复和 usage
 - `material_queries`：模型生成的微信读书检索词
 - `weread_request` / `weread_response`：微信读书接口、参数摘要、返回摘要、耗时
 - `material_search_results`：每个 query 命中的书

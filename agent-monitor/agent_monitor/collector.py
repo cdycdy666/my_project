@@ -322,7 +322,7 @@ def collect_run_detail(trace_id: str) -> dict[str, Any] | None:
     return None
 
 
-def _compact(value: Any, string_limit: int = 1600, list_limit: int = 12, depth: int = 0) -> Any:
+def _compact(value: Any, string_limit: int = 30_000, list_limit: int = 80, depth: int = 0) -> Any:
     if depth > 4:
         return "[nested]"
     if isinstance(value, str):
@@ -404,14 +404,14 @@ def _event_io(event: dict[str, Any]) -> dict[str, Any]:
         }
     if name == "llm_request":
         return {
-            "input": _pick(event, ("purpose", "model", "base_url", "temperature", "prompt_chars", "metadata")),
+            "input": _pick(event, ("purpose", "model", "base_url", "temperature", "prompt_chars", "metadata", "messages", "request_payload")),
             "output": {"request": "sent"},
             "meta": meta,
         }
     if name == "llm_response":
         return {
             "input": _pick(event, ("purpose", "model")),
-            "output": _pick(event, ("elapsed_ms", "response_keys", "usage", "raw_text", "text")),
+            "output": _pick(event, ("elapsed_ms", "response_keys", "response_text", "usage", "raw_text", "text", "response")),
             "meta": meta,
         }
     if name == "weread_request":
@@ -423,13 +423,13 @@ def _event_io(event: dict[str, Any]) -> dict[str, Any]:
     if name == "weread_response":
         return {
             "input": _pick(event, ("api_name", "endpoint", "params")),
-            "output": _pick(event, ("summary", "elapsed_ms", "ok", "error")),
+            "output": _pick(event, ("summary", "response", "elapsed_ms", "ok", "error")),
             "meta": meta,
         }
     if name == "tool_result":
         return {
-            "input": _pick(event, ("tool",)),
-            "output": _pick(event, ("ok", "error", "metadata", "episode_count", "paper_count", "result")),
+            "input": _pick(event, ("tool", "arguments")),
+            "output": _pick(event, ("ok", "error", "metadata", "content", "episodes", "papers", "episode_count", "paper_count", "result")),
             "meta": meta,
         }
     if "gate" in name or "check" in name:
@@ -475,9 +475,9 @@ def _safe_event(event: dict[str, Any]) -> dict[str, Any]:
         if key.startswith("_"):
             continue
         if isinstance(value, str):
-            safe[key] = _redact(value[:5000])
+            safe[key] = _redact(value[:50_000])
         else:
-            safe[key] = _compact(value, string_limit=5000, list_limit=40)
+            safe[key] = _compact(value, string_limit=50_000, list_limit=160)
     return safe
 
 

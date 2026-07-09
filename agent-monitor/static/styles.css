@@ -541,6 +541,75 @@ h1 {
   overflow: auto;
 }
 
+.value-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.value-section {
+  border: 1px solid rgba(58, 70, 84, 0.72);
+  border-radius: var(--radius);
+  background: rgba(9, 12, 18, 0.62);
+  padding: 9px;
+}
+
+.value-section summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.value-section pre {
+  max-height: 420px;
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid rgba(58, 70, 84, 0.48);
+}
+
+.field-name {
+  color: var(--cyan);
+  font-weight: 650;
+}
+
+.field-type {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.message-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 9px;
+}
+
+.message-card {
+  border-top: 1px solid rgba(58, 70, 84, 0.48);
+  padding-top: 9px;
+}
+
+.message-role {
+  display: inline-flex;
+  margin-bottom: 7px;
+  border: 1px solid rgba(143, 183, 255, 0.38);
+  border-radius: 999px;
+  color: var(--blue);
+  padding: 3px 8px;
+  font-size: 11px;
+  line-height: 1.1;
+}
+
+.message-extra {
+  margin-top: 8px !important;
+  color: var(--muted) !important;
+}
+
 .input-card {
   border-left: 3px solid rgba(121, 230, 243, 0.68);
 }

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+import time
 import urllib.error
 import urllib.request
 from typing import Any
+
+from .trace import PodcastTrace
 
 
 SYSTEM_PROMPT = """你是用户的大模型技术学习陪练，播客只是材料入口。
@@ -120,7 +123,30 @@ def _post_chat_completion(
     base_url: str,
     payload: dict[str, Any],
     timeout: int = 45,
+    trace: PodcastTrace | None = None,
+    purpose: str = "unknown",
+    metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    started_at = time.monotonic()
+    if trace:
+        messages = payload.get("messages")
+        prompt_chars = 0
+        if isinstance(messages, list):
+            for message in messages:
+                if isinstance(message, dict) and isinstance(message.get("content"), str):
+                    prompt_chars += len(message["content"])
+        trace.event(
+            "llm_request",
+            purpose=purpose,
+            model=payload.get("model"),
+            base_url=base_url,
+            temperature=payload.get("temperature"),
+            prompt_chars=prompt_chars,
+            request_payload=payload,
+            messages=messages if isinstance(messages, list) else [],
+            metadata=metadata or {},
+        )
+
     request = urllib.request.Request(
         base_url.rstrip("/") + "/chat/completions",
         data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
@@ -132,9 +158,31 @@ def _post_chat_completion(
     )
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
-            return json.loads(response.read().decode("utf-8"))
+            data = json.loads(response.read().decode("utf-8"))
+            if trace:
+                response_text = _extract_response_text(data)
+                trace.event(
+                    "llm_response",
+                    purpose=purpose,
+                    model=payload.get("model"),
+                    elapsed_ms=int((time.monotonic() - started_at) * 1000),
+                    response_keys=sorted(data.keys()) if isinstance(data, dict) else [],
+                    response_text=response_text,
+                    usage=data.get("usage") if isinstance(data, dict) else None,
+                    response=data,
+                )
+            return data
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
+        if trace:
+            trace.event(
+                "llm_error",
+                purpose=purpose,
+                model=payload.get("model"),
+                elapsed_ms=int((time.monotonic() - started_at) * 1000),
+                error=f"HTTP {exc.code} {body[:4000]}",
+                response_body=body,
+            )
         raise RuntimeError(f"LLM request failed: HTTP {exc.code} {body[:500]}") from exc
 
 
@@ -146,6 +194,7 @@ def generate_podcast_reply(
     context: str,
     stats: str,
     mode: str = "general",
+    trace: PodcastTrace | None = None,
 ) -> str:
     if not api_key:
         raise RuntimeError("missing LLM API key")
@@ -168,7 +217,15 @@ def generate_podcast_reply(
         ],
     }
 
-    data = _post_chat_completion(api_key, base_url, payload, timeout=45)
+    data = _post_chat_completion(
+        api_key,
+        base_url,
+        payload,
+        timeout=45,
+        trace=trace,
+        purpose="legacy_podcast_reply",
+        metadata={"user_message": user_message, "context_chars": len(context), "stats_chars": len(stats), "mode": mode},
+    )
 
     text = _extract_response_text(data)
     if not text:
@@ -184,6 +241,7 @@ def plan_next_podcast_action(
     conversation_history: str,
     state_summary: str,
     tool_history: str,
+    trace: PodcastTrace | None = None,
 ) -> dict[str, Any]:
     fallback = {
         "action": "fail",
@@ -210,7 +268,20 @@ def plan_next_podcast_action(
             },
         ],
     }
-    data = _post_chat_completion(api_key, base_url, payload, timeout=45)
+    data = _post_chat_completion(
+        api_key,
+        base_url,
+        payload,
+        timeout=45,
+        trace=trace,
+        purpose="podcast_next_action",
+        metadata={
+            "user_message": user_message,
+            "conversation_history_chars": len(conversation_history),
+            "state_summary_chars": len(state_summary),
+            "tool_history_chars": len(tool_history),
+        },
+    )
     text = _strip_json_fence(_extract_response_text(data))
     try:
         parsed = json.loads(text)
@@ -246,6 +317,7 @@ def generate_agent_podcast_reply(
     conversation_history: str,
     tool_history: str,
     stats: str,
+    trace: PodcastTrace | None = None,
 ) -> str:
     if not api_key:
         raise RuntimeError("missing LLM API key")
@@ -267,7 +339,20 @@ def generate_agent_podcast_reply(
             },
         ],
     }
-    data = _post_chat_completion(api_key, base_url, payload, timeout=60)
+    data = _post_chat_completion(
+        api_key,
+        base_url,
+        payload,
+        timeout=60,
+        trace=trace,
+        purpose="podcast_agent_reply",
+        metadata={
+            "user_message": user_message,
+            "conversation_history_chars": len(conversation_history),
+            "tool_history_chars": len(tool_history),
+            "stats_chars": len(stats),
+        },
+    )
     text = _extract_response_text(data)
     if not text:
         raise RuntimeError("LLM returned empty response")

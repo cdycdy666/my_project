@@ -153,6 +153,7 @@ def call_weread_gateway(
             params=params,
             elapsed_ms=int((time.monotonic() - started_at) * 1000),
             summary=_summarize_weread_response(api_name, data if isinstance(data, dict) else {}),
+            response=data,
         )
     return data
 

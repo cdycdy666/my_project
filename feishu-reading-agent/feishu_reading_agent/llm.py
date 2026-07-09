@@ -278,6 +278,8 @@ def _post_chat_completion(
             base_url=base_url,
             temperature=payload.get("temperature"),
             prompt_chars=prompt_chars,
+            request_payload=payload,
+            messages=messages if isinstance(messages, list) else [],
             metadata=metadata or {},
         )
 
@@ -297,12 +299,16 @@ def _post_chat_completion(
             with urllib.request.urlopen(request, timeout=timeout) as response:
                 data = json.loads(response.read().decode("utf-8"))
                 if trace:
+                    response_text = _extract_response_text(data)
                     trace.event(
                         "llm_response",
                         purpose=purpose,
                         model=payload.get("model"),
                         elapsed_ms=int((time.monotonic() - started_at) * 1000),
                         response_keys=sorted(data.keys()) if isinstance(data, dict) else [],
+                        response_text=response_text,
+                        usage=data.get("usage") if isinstance(data, dict) else None,
+                        response=data,
                     )
                 return data
         except urllib.error.HTTPError as exc:
@@ -313,7 +319,8 @@ def _post_chat_completion(
                     purpose=purpose,
                     model=payload.get("model"),
                     elapsed_ms=int((time.monotonic() - started_at) * 1000),
-                    error=f"HTTP {exc.code} {body[:800]}",
+                    error=f"HTTP {exc.code} {body[:4000]}",
+                    response_body=body,
                 )
             raise RuntimeError(f"LLM API failed: HTTP {exc.code} {body[:800]}") from exc
         except (TimeoutError, socket.timeout, urllib.error.URLError) as exc:

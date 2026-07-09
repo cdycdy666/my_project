@@ -11,6 +11,8 @@ from typing import Any
 
 _TRACE_LOCK = threading.RLock()
 _SENSITIVE_KEY_NAMES = {"authorization", "password", "secret", "token", "key"}
+DEFAULT_MAX_TEXT = 80_000
+DEFAULT_MAX_LIST_ITEMS = 500
 
 
 def _is_sensitive_key(key: str) -> bool:
@@ -28,7 +30,7 @@ def _utc_timestamp() -> str:
     return datetime.utcnow().isoformat(timespec="milliseconds") + "Z"
 
 
-def _sanitize(value: Any, max_text: int = 4000) -> Any:
+def _sanitize(value: Any, max_text: int = DEFAULT_MAX_TEXT) -> Any:
     if isinstance(value, dict):
         sanitized: dict[str, Any] = {}
         for key, item in value.items():
@@ -40,7 +42,10 @@ def _sanitize(value: Any, max_text: int = 4000) -> Any:
         return sanitized
 
     if isinstance(value, list):
-        return [_sanitize(item, max_text=max_text) for item in value[:80]]
+        sanitized = [_sanitize(item, max_text=max_text) for item in value[:DEFAULT_MAX_LIST_ITEMS]]
+        if len(value) > DEFAULT_MAX_LIST_ITEMS:
+            sanitized.append(f"... [{len(value) - DEFAULT_MAX_LIST_ITEMS} more items]")
+        return sanitized
 
     if isinstance(value, str):
         text = value.strip()

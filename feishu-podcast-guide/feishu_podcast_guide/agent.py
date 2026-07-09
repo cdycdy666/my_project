@@ -233,6 +233,7 @@ class PodcastGuideAgent:
                 history_text,
                 state_summary,
                 "\n\n".join(tool_history),
+                trace=trace,
             )
             action_plan = self._coerce_action(
                 planned,
@@ -251,7 +252,8 @@ class PodcastGuideAgent:
                 "agent_next_action",
                 action=action,
                 reason=action_plan.get("reason"),
-                raw_text=str(action_plan.get("raw_text") or "")[:1000],
+                raw_text=str(action_plan.get("raw_text") or ""),
+                plan=action_plan,
             )
             tool_history.append(
                 f"agent_next_action: action={action}; reason={action_plan.get('reason')}; raw={action_plan.get('raw_text', '')[:500]}"
@@ -263,7 +265,19 @@ class PodcastGuideAgent:
                 limit = self._safe_int(action_plan.get("limit"), fallback=6, minimum=1, maximum=10)
                 result = self.tool_registry.call("search_episodes", tool_context, query=query, limit=limit)
                 self._merge_episode_refs(allowed_episodes, result)
-                trace.event("tool_result", tool=result.tool, ok=result.ok, metadata=result.metadata, episode_count=len(result.episodes), error=result.error)
+                trace.event(
+                    "tool_result",
+                    tool=result.tool,
+                    ok=result.ok,
+                    arguments={"query": query, "limit": limit},
+                    metadata=result.metadata,
+                    content=result.content,
+                    episodes=result.episodes,
+                    papers=result.papers,
+                    episode_count=len(result.episodes),
+                    paper_count=len(result.papers),
+                    error=result.error,
+                )
                 tool_history.append(result.as_history_text())
                 continue
 
@@ -277,7 +291,23 @@ class PodcastGuideAgent:
                     title=str(action_plan.get("title") or action_plan.get("query") or ""),
                 )
                 self._merge_episode_refs(allowed_episodes, result)
-                trace.event("tool_result", tool=result.tool, ok=result.ok, metadata=result.metadata, episode_count=len(result.episodes), error=result.error)
+                trace.event(
+                    "tool_result",
+                    tool=result.tool,
+                    ok=result.ok,
+                    arguments={
+                        "episode_id": str(action_plan.get("episode_id") or ""),
+                        "url": str(action_plan.get("url") or ""),
+                        "title": str(action_plan.get("title") or action_plan.get("query") or ""),
+                    },
+                    metadata=result.metadata,
+                    content=result.content,
+                    episodes=result.episodes,
+                    papers=result.papers,
+                    episode_count=len(result.episodes),
+                    paper_count=len(result.papers),
+                    error=result.error,
+                )
                 tool_history.append(result.as_history_text())
                 continue
 
@@ -286,14 +316,38 @@ class PodcastGuideAgent:
                 limit = self._safe_int(action_plan.get("limit"), fallback=8, minimum=1, maximum=12)
                 result = self.tool_registry.call("list_learning_path", tool_context, topic=topic, limit=limit)
                 self._merge_episode_refs(allowed_episodes, result)
-                trace.event("tool_result", tool=result.tool, ok=result.ok, metadata=result.metadata, episode_count=len(result.episodes), error=result.error)
+                trace.event(
+                    "tool_result",
+                    tool=result.tool,
+                    ok=result.ok,
+                    arguments={"topic": topic, "limit": limit},
+                    metadata=result.metadata,
+                    content=result.content,
+                    episodes=result.episodes,
+                    papers=result.papers,
+                    episode_count=len(result.episodes),
+                    paper_count=len(result.papers),
+                    error=result.error,
+                )
                 tool_history.append(result.as_history_text())
                 continue
 
             if action == "refresh_rss":
                 refresh_rounds += 1
                 result = self.tool_registry.call("refresh_rss", tool_context)
-                trace.event("tool_result", tool=result.tool, ok=result.ok, metadata=result.metadata, episode_count=len(result.episodes), error=result.error)
+                trace.event(
+                    "tool_result",
+                    tool=result.tool,
+                    ok=result.ok,
+                    arguments={},
+                    metadata=result.metadata,
+                    content=result.content,
+                    episodes=result.episodes,
+                    papers=result.papers,
+                    episode_count=len(result.episodes),
+                    paper_count=len(result.papers),
+                    error=result.error,
+                )
                 tool_history.append(result.as_history_text())
                 continue
 
@@ -307,7 +361,11 @@ class PodcastGuideAgent:
                     "tool_result",
                     tool=result.tool,
                     ok=result.ok,
+                    arguments={"query": query, "limit": limit},
                     metadata=result.metadata,
+                    content=result.content,
+                    episodes=result.episodes,
+                    papers=result.papers,
                     episode_count=len(result.episodes),
                     paper_count=len(result.papers),
                     error=result.error,
@@ -331,7 +389,17 @@ class PodcastGuideAgent:
                     "tool_result",
                     tool=result.tool,
                     ok=result.ok,
+                    arguments={
+                        "identifier": str(action_plan.get("identifier") or ""),
+                        "paper_id": str(action_plan.get("paper_id") or action_plan.get("arxiv_id") or ""),
+                        "url": str(action_plan.get("url") or ""),
+                        "title": str(action_plan.get("title") or ""),
+                        "query": str(action_plan.get("query") or ""),
+                    },
                     metadata=result.metadata,
+                    content=result.content,
+                    episodes=result.episodes,
+                    papers=result.papers,
                     episode_count=len(result.episodes),
                     paper_count=len(result.papers),
                     error=result.error,
@@ -349,6 +417,7 @@ class PodcastGuideAgent:
                     history_text,
                     "\n\n".join(tool_history),
                     self.index.stats(),
+                    trace=trace,
                 )
                 gate = self._check_reply_evidence(reply, allowed_episodes, allowed_papers)
                 trace.event("evidence_gate", ok=gate["ok"], reason=gate["reason"], extra_queries=gate["extra_queries"], reply_chars=len(reply))
@@ -382,7 +451,11 @@ class PodcastGuideAgent:
                         "tool_result",
                         tool=result.tool,
                         ok=result.ok,
+                        arguments={"query": query, "limit": 4},
                         metadata=result.metadata,
+                        content=result.content,
+                        episodes=result.episodes,
+                        papers=result.papers,
                         episode_count=len(result.episodes),
                         paper_count=len(result.papers),
                         error=result.error,

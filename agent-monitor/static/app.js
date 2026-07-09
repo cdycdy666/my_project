@@ -348,12 +348,69 @@ function renderFlow(events, isArchitecture) {
   });
 }
 
+function describeValue(value) {
+  if (Array.isArray(value)) return `array · ${value.length}`;
+  if (value && typeof value === "object") return `object · ${Object.keys(value).length}`;
+  if (typeof value === "string") return `text · ${value.length}`;
+  if (value === null || value === undefined) return "empty";
+  return typeof value;
+}
+
+function renderPrimitive(value) {
+  return `<pre>${escapeHtml(value)}</pre>`;
+}
+
+function isChatMessages(key, value) {
+  return (
+    key === "messages" &&
+    Array.isArray(value) &&
+    value.every((item) => item && typeof item === "object" && ("role" in item || "content" in item))
+  );
+}
+
+function renderMessages(value) {
+  return `<div class="message-stack">${value
+    .map((message, index) => {
+      const role = message.role || `message ${index + 1}`;
+      const content = typeof message.content === "string" ? message.content : JSON.stringify(message.content, null, 2);
+      const rest = Object.fromEntries(Object.entries(message).filter(([key]) => !["role", "content"].includes(key)));
+      return `
+        <article class="message-card">
+          <div class="message-role">${escapeHtml(role)}</div>
+          <pre>${escapeHtml(content || "")}</pre>
+          ${Object.keys(rest).length ? `<pre class="message-extra">${escapeHtml(JSON.stringify(rest, null, 2))}</pre>` : ""}
+        </article>`;
+    })
+    .join("")}</div>`;
+}
+
+function renderField(key, value) {
+  const body = isChatMessages(key, value)
+    ? renderMessages(value)
+    : value && typeof value === "object"
+      ? `<pre>${escapeHtml(JSON.stringify(value, null, 2))}</pre>`
+      : renderPrimitive(value);
+  return `
+    <details class="value-section" open>
+      <summary>
+        <span class="field-name">${escapeHtml(key)}</span>
+        <span class="field-type">${escapeHtml(describeValue(value))}</span>
+      </summary>
+      ${body}
+    </details>`;
+}
+
 function renderValue(value) {
   if (value === null || value === undefined || value === "") {
     return `<div class="io-empty">empty</div>`;
   }
   if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-    return `<pre>${escapeHtml(value)}</pre>`;
+    return renderPrimitive(value);
+  }
+  if (!Array.isArray(value) && typeof value === "object") {
+    return `<div class="value-sections">${Object.entries(value)
+      .map(([key, fieldValue]) => renderField(key, fieldValue))
+      .join("")}</div>`;
   }
   return `<pre>${escapeHtml(JSON.stringify(value, null, 2))}</pre>`;
 }
