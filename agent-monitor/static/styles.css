@@ -267,6 +267,11 @@ h1 {
   overflow: hidden;
 }
 
+.detail-panel {
+  display: flex;
+  flex-direction: column;
+}
+
 .panel-heading,
 .detail-header {
   min-height: 70px;
@@ -397,8 +402,9 @@ h1 {
 }
 
 .flow-view {
-  min-height: 228px;
-  padding: 18px;
+  flex: 0 0 172px;
+  min-height: 0;
+  padding: 12px 14px;
   border-bottom: 1px solid var(--line);
   overflow: auto;
 }
@@ -406,27 +412,29 @@ h1 {
 .flow-track {
   display: inline-flex;
   min-width: 100%;
-  align-items: stretch;
-  gap: 18px;
+  align-items: flex-start;
+  gap: 12px;
 }
 
 .flow-node {
   position: relative;
-  width: 172px;
-  min-height: 104px;
+  width: 154px;
+  min-height: 124px;
+  max-height: 136px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius);
   background: #111720;
-  padding: 11px;
+  padding: 10px;
   cursor: pointer;
+  overflow: hidden;
 }
 
 .flow-node::after {
   content: "";
   position: absolute;
   top: 50%;
-  right: -19px;
-  width: 18px;
+  right: -13px;
+  width: 12px;
   border-top: 1px solid var(--line-strong);
 }
 
@@ -464,30 +472,43 @@ h1 {
 }
 
 .node-label {
-  margin-top: 9px;
+  display: -webkit-box;
+  margin-top: 8px;
+  overflow: hidden;
   font-size: 13px;
   line-height: 1.25;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .node-summary {
+  display: -webkit-box;
   margin-top: 8px;
+  overflow: hidden;
   color: var(--muted);
   font-size: 11px;
   line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .node-io {
+  display: -webkit-box;
   margin-top: 10px;
   border-top: 1px solid rgba(58, 70, 84, 0.48);
+  overflow: hidden;
   color: #b8c4d4;
   padding-top: 8px;
   font-size: 10px;
   line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .event-inspector {
-  height: calc(100% - 299px);
-  min-height: 220px;
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
   padding: 14px 16px 18px;
   overflow: auto;
 }
@@ -595,7 +616,7 @@ h1 {
 }
 
 .io-card pre {
-  max-height: 280px;
+  max-height: min(560px, 52vh);
   overflow: auto;
 }
 
@@ -624,7 +645,7 @@ h1 {
 }
 
 .value-section pre {
-  max-height: 420px;
+  max-height: min(620px, 58vh);
   margin-top: 9px;
   padding-top: 9px;
   border-top: 1px solid rgba(58, 70, 84, 0.48);
@@ -710,7 +731,7 @@ h1 {
 
 .raw-details pre {
   margin-top: 10px;
-  max-height: 360px;
+  max-height: min(620px, 58vh);
   overflow: auto;
 }
 
