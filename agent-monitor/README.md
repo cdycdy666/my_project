@@ -8,6 +8,16 @@
 
 它只读 systemd 状态、timer、trace JSONL 和最近日志，不写入业务项目，也不接触真实密钥。
 
+## 架构图
+
+高层系统架构图：
+
+```text
+docs/personal-agents-observability-architecture.excalidraw
+```
+
+这张图用于讨论整体系统边界：用户入口、三个业务 Agent、共享证据源、输出沉淀，以及 Agent Monitor 的只读观测链路。
+
 ## 能看到什么
 
 - 页面拆成 `总览 / 运行记录 / 架构视图 / 告警`，避免所有细节挤在一个屏幕里。
