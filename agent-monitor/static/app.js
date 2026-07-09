@@ -359,13 +359,30 @@ function renderArchitecture() {
   const agents = (state.architecture?.agents || []).filter((agent) => !state.selectedAgent || agent.id === state.selectedAgent);
   $("detailHeader").innerHTML = `
     <h2 class="detail-title">架构视图</h2>
-    <div class="detail-subtitle">静态结构用于理解边界；点击运行记录可以切回真实执行轨迹。</div>`;
+    <div class="detail-subtitle">语义级步骤用于理解系统边界、预期输入输出和风险；运行记录保留事件级 trace。</div>`;
   const nodes = agents.flatMap((agent) =>
     (agent.nodes || []).map((node, index) => ({
       index: index + 1,
       kind: node.kind,
       label: `${agent.name}: ${node.label}`,
-      summary: agent.role,
+      summary: node.goal || agent.role,
+      event: "architecture_step",
+      io: {
+        input: {
+          goal: node.goal,
+          expected_input: node.input || [],
+        },
+        output: {
+          expected_output: node.output || [],
+          risk: node.risk || [],
+        },
+        meta: {
+          agent: agent.name,
+          step_id: node.id,
+          dependencies: node.depends || [],
+          role: agent.role,
+        },
+      },
       raw: node,
     }))
   );
@@ -385,7 +402,7 @@ function renderFlow(events, isArchitecture) {
               <div class="node-kind">${escapeHtml(kind)}</div>
               <div class="node-label">${escapeHtml(event.label || event.event || "event")}</div>
               <div class="node-summary">${escapeHtml(event.summary || event.ts || "")}</div>
-              ${!isArchitecture && nodeIoText(event) ? `<div class="node-io">${escapeHtml(nodeIoText(event))}</div>` : ""}
+              ${nodeIoText(event) ? `<div class="node-io">${escapeHtml(nodeIoText(event))}</div>` : ""}
             </button>`;
         })
         .join("")}</div>`
