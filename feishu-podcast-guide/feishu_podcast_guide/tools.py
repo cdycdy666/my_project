@@ -4,6 +4,13 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from .config import Config
+from .paper import (
+    fetch_arxiv_paper,
+    format_paper_detail,
+    format_paper_search_results,
+    paper_ref,
+    search_arxiv,
+)
 from .podcast_index import Episode, PodcastIndex, format_context, format_episode_detail
 from .rss import refresh_rss
 
@@ -22,6 +29,7 @@ class ToolResult:
     content: str
     evidence_level: str
     episodes: list[dict[str, str]] = field(default_factory=list)
+    papers: list[dict[str, str]] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
     error: str = ""
 
@@ -38,6 +46,12 @@ class ToolResult:
                 lines.append(
                     f"- id={episode.get('id')} title={episode.get('title')} url={episode.get('url')}"
                 )
+        if self.papers:
+            lines.append("papers:")
+            for paper in self.papers:
+                lines.append(
+                    f"- id={paper.get('id')} title={paper.get('title')} abs_url={paper.get('abs_url')} pdf_url={paper.get('pdf_url')}"
+                )
         if self.error:
             lines.append(f"error: {self.error}")
         if self.content:
@@ -53,6 +67,8 @@ class PodcastToolRegistry:
             "get_episode_detail": self._get_episode_detail,
             "list_learning_path": self._list_learning_path,
             "refresh_rss": self._refresh_rss,
+            "search_papers": self._search_papers,
+            "fetch_paper": self._fetch_paper,
         }
 
     @property
@@ -168,6 +184,53 @@ class PodcastToolRegistry:
             content=f"RSS 已刷新，当前下载到 {count} 集。",
             evidence_level="rss_refresh_result",
             metadata={"item_count": count},
+        )
+
+    def _search_papers(
+        self,
+        context: ToolContext,
+        query: str,
+        limit: int = 5,
+    ) -> ToolResult:
+        safe_limit = max(1, min(int(limit or 5), 8))
+        papers = search_arxiv(query, limit=safe_limit)
+        return ToolResult(
+            tool="search_papers",
+            ok=bool(papers),
+            content=format_paper_search_results(papers),
+            evidence_level="arxiv_search_results",
+            papers=[paper_ref(paper) for paper in papers],
+            metadata={"query": query, "limit": safe_limit, "result_count": len(papers)},
+        )
+
+    def _fetch_paper(
+        self,
+        context: ToolContext,
+        identifier: str = "",
+        paper_id: str = "",
+        url: str = "",
+        title: str = "",
+        query: str = "",
+    ) -> ToolResult:
+        target = identifier or paper_id or url or title or query
+        paper, text, extracted = fetch_arxiv_paper(
+            target,
+            context.config.paper_cache_path,
+            max_pages=context.config.paper_max_pages,
+            max_chars=context.config.paper_max_chars,
+        )
+        return ToolResult(
+            tool="fetch_paper",
+            ok=True,
+            content=format_paper_detail(paper, text, extracted),
+            evidence_level="arxiv_pdf_text" if extracted else "arxiv_metadata_only",
+            papers=[paper_ref(paper)],
+            metadata={
+                "identifier": target,
+                "paper_id": paper.paper_id,
+                "text_chars": len(text),
+                "pdf_text_extracted": extracted,
+            },
         )
 
 

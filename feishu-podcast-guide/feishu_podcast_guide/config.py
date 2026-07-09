@@ -27,6 +27,9 @@ class Config:
     daily_theme_rotate_count: int
     daily_push_time: str
     daily_recent_window: int
+    paper_cache_path: Path
+    paper_max_pages: int
+    paper_max_chars: int
 
 
 def _read_env(path: Path) -> dict[str, str]:
@@ -133,6 +136,12 @@ def load_config(project_dir: Path) -> Config:
         daily_theme_rotate_count=max(1, _env_int(env, "PODCAST_DAILY_THEME_ROTATE_COUNT", 7)),
         daily_push_time=env.get("PODCAST_DAILY_PUSH_TIME", "08:30"),
         daily_recent_window=max(1, _env_int(env, "PODCAST_DAILY_RECENT_WINDOW", 60)),
+        paper_cache_path=_path(
+            env.get("PODCAST_PAPER_CACHE_PATH"),
+            project_dir / "data" / "papers",
+        ),
+        paper_max_pages=max(1, _env_int(env, "PODCAST_PAPER_MAX_PAGES", 8)),
+        paper_max_chars=max(3000, _env_int(env, "PODCAST_PAPER_MAX_CHARS", 18000)),
     )
 
 

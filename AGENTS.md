@@ -21,7 +21,7 @@
 - 新增长期项目、项目职责变化、部署路径变化、核心数据流变化、踩过且可能复发的坑时，再更新本文件。
 - 不写真实密钥、token、cookie、私人日志原文等敏感内容。
 
-## 四个核心项目
+## 核心项目
 
 ### 1. Obsidian 个人处境知识库
 
@@ -223,6 +223,43 @@ ssh root@123.57.229.149 "tail -n 80 /opt/feishu-reading-agent/logs/traces/$(date
 - 不写入 `personal-kb`。
 - 不把 `WEREAD_API_KEY`、飞书 secret、模型 key、`state.json`、`.env` 提交到 Git。
 
+### 5. 飞书播客 / 论文学习陪练
+
+目录：
+
+```text
+feishu-podcast-guide/
+```
+
+服务器部署：
+
+```text
+/opt/feishu-podcast-guide
+```
+
+用途：
+
+- 独立飞书播客学习机器人，机器人名建议为 `研几`。
+- 以「AI可可AI生活」RSS 和 Agent/RL 学习路径为材料入口。
+- 帮用户选择该听哪几集、给听前抓手、做听后复盘和项目映射。
+- 论文模式支持 arXiv 搜索、PDF 解析缓存和技术细节拆解。
+- 每日 08:30 可主动推送 1 集，并按主题轮换征询。
+
+重要边界：
+
+- 播客侧不读取音频全文，不做二次长摘要。
+- 论文侧第一版只支持 arXiv；PDF 缓存是运行数据，不提交 Git。
+- 不读取或写入 `personal-kb`，不要和 `feishu-reading-agent` 混用。
+- 改动 LLM planner、工具循环、论文检索或证据门后，要查看 `logs/traces/*.jsonl`。
+
+常用检查：
+
+```bash
+ssh root@123.57.229.149 "systemctl status feishu-podcast-guide.service --no-pager"
+ssh root@123.57.229.149 "systemctl list-timers --all | grep feishu-podcast-guide"
+ssh root@123.57.229.149 "tail -n 80 /opt/feishu-podcast-guide/logs/traces/$(date +%F).jsonl"
+```
+
 ## 不要混淆的项目关系
 
 ```text
@@ -238,6 +275,11 @@ feishu-reading-agent
   -> 飞书读书机器人
   -> 读 personal-kb + 微信读书
   -> 不写 Obsidian
+
+feishu-podcast-guide
+  -> 飞书播客/论文学习陪练
+  -> 读播客 RSS + arXiv
+  -> 不写 personal-kb
 
 openclaw-infoflow-coach
   -> 如流/OpenClaw 沟通教练

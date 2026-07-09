@@ -193,9 +193,12 @@ class PodcastGuideAgent:
         )
         tool_history: list[str] = []
         allowed_episodes: dict[str, dict[str, str]] = {}
+        allowed_papers: dict[str, dict[str, str]] = {}
         search_rounds = 0
         detail_rounds = 0
         refresh_rounds = 0
+        paper_search_rounds = 0
+        paper_fetch_rounds = 0
         draft_rounds = 0
 
         for turn in range(1, max_turns + 1):
@@ -203,17 +206,23 @@ class PodcastGuideAgent:
                 "agent_loop_turn",
                 turn=turn,
                 evidence_count=len(allowed_episodes),
+                paper_evidence_count=len(allowed_papers),
                 search_rounds=search_rounds,
                 detail_rounds=detail_rounds,
                 refresh_rounds=refresh_rounds,
+                paper_search_rounds=paper_search_rounds,
+                paper_fetch_rounds=paper_fetch_rounds,
                 draft_rounds=draft_rounds,
             )
             state_summary = self._agent_state_summary(
                 turn=turn,
                 allowed_episodes=allowed_episodes,
+                allowed_papers=allowed_papers,
                 search_rounds=search_rounds,
                 detail_rounds=detail_rounds,
                 refresh_rounds=refresh_rounds,
+                paper_search_rounds=paper_search_rounds,
+                paper_fetch_rounds=paper_fetch_rounds,
                 draft_rounds=draft_rounds,
             )
             planned = plan_next_podcast_action(
@@ -229,9 +238,12 @@ class PodcastGuideAgent:
                 planned,
                 message,
                 allowed_episodes,
+                allowed_papers,
                 search_rounds,
                 detail_rounds,
                 refresh_rounds,
+                paper_search_rounds,
+                paper_fetch_rounds,
                 draft_rounds,
             )
             action = str(action_plan.get("action") or "")
@@ -285,6 +297,48 @@ class PodcastGuideAgent:
                 tool_history.append(result.as_history_text())
                 continue
 
+            if action == "search_papers":
+                paper_search_rounds += 1
+                query = str(action_plan.get("query") or self._paper_query(message))
+                limit = self._safe_int(action_plan.get("limit"), fallback=5, minimum=1, maximum=8)
+                result = self.tool_registry.call("search_papers", tool_context, query=query, limit=limit)
+                self._merge_paper_refs(allowed_papers, result)
+                trace.event(
+                    "tool_result",
+                    tool=result.tool,
+                    ok=result.ok,
+                    metadata=result.metadata,
+                    episode_count=len(result.episodes),
+                    paper_count=len(result.papers),
+                    error=result.error,
+                )
+                tool_history.append(result.as_history_text(max_chars=3500))
+                continue
+
+            if action == "fetch_paper":
+                paper_fetch_rounds += 1
+                result = self.tool_registry.call(
+                    "fetch_paper",
+                    tool_context,
+                    identifier=str(action_plan.get("identifier") or ""),
+                    paper_id=str(action_plan.get("paper_id") or action_plan.get("arxiv_id") or ""),
+                    url=str(action_plan.get("url") or ""),
+                    title=str(action_plan.get("title") or ""),
+                    query=str(action_plan.get("query") or ""),
+                )
+                self._merge_paper_refs(allowed_papers, result)
+                trace.event(
+                    "tool_result",
+                    tool=result.tool,
+                    ok=result.ok,
+                    metadata=result.metadata,
+                    episode_count=len(result.episodes),
+                    paper_count=len(result.papers),
+                    error=result.error,
+                )
+                tool_history.append(result.as_history_text(max_chars=6500))
+                continue
+
             if action == "draft_reply":
                 draft_rounds += 1
                 reply = generate_agent_podcast_reply(
@@ -296,7 +350,7 @@ class PodcastGuideAgent:
                     "\n\n".join(tool_history),
                     self.index.stats(),
                 )
-                gate = self._check_reply_evidence(reply, allowed_episodes)
+                gate = self._check_reply_evidence(reply, allowed_episodes, allowed_papers)
                 trace.event("evidence_gate", ok=gate["ok"], reason=gate["reason"], extra_queries=gate["extra_queries"], reply_chars=len(reply))
                 if gate["ok"]:
                     self._remember_interaction(chat_id, message, reply, allowed_episodes)
@@ -316,10 +370,23 @@ class PodcastGuideAgent:
                         "你可以换一个更具体的主题，比如“RAG-Gym 怎么听”或“Agent 记忆从哪几集开始”。"
                     )
                 for query in gate["extra_queries"][:2]:
-                    search_rounds += 1
-                    result = self.tool_registry.call("search_episodes", tool_context, query=query, limit=4)
-                    self._merge_episode_refs(allowed_episodes, result)
-                    trace.event("tool_result", tool=result.tool, ok=result.ok, metadata=result.metadata, episode_count=len(result.episodes), error=result.error)
+                    if self._asks_for_paper_detail(message) or self._paper_identifier_from_message(query):
+                        paper_search_rounds += 1
+                        result = self.tool_registry.call("search_papers", tool_context, query=query, limit=4)
+                        self._merge_paper_refs(allowed_papers, result)
+                    else:
+                        search_rounds += 1
+                        result = self.tool_registry.call("search_episodes", tool_context, query=query, limit=4)
+                        self._merge_episode_refs(allowed_episodes, result)
+                    trace.event(
+                        "tool_result",
+                        tool=result.tool,
+                        ok=result.ok,
+                        metadata=result.metadata,
+                        episode_count=len(result.episodes),
+                        paper_count=len(result.papers),
+                        error=result.error,
+                    )
                     tool_history.append(result.as_history_text())
                 continue
 
@@ -336,37 +403,76 @@ class PodcastGuideAgent:
         plan: dict[str, Any],
         message: str,
         allowed_episodes: dict[str, dict[str, str]],
+        allowed_papers: dict[str, dict[str, str]],
         search_rounds: int,
         detail_rounds: int,
         refresh_rounds: int,
+        paper_search_rounds: int,
+        paper_fetch_rounds: int,
         draft_rounds: int,
     ) -> dict[str, Any]:
         action = str(plan.get("action") or "")
-        allowed = {"search_episodes", "get_episode_detail", "list_learning_path", "refresh_rss", "draft_reply", "fail"}
+        allowed = {
+            "search_episodes",
+            "get_episode_detail",
+            "list_learning_path",
+            "refresh_rss",
+            "search_papers",
+            "fetch_paper",
+            "draft_reply",
+            "fail",
+        }
         result = dict(plan)
         if action not in allowed:
             action = "search_episodes"
 
+        paper_identifier = self._paper_identifier_from_message(message)
+        wants_paper = self._asks_for_paper_detail(message)
+
         if action == "fail" and self._is_soft_planner_failure(plan):
             action = (
                 "draft_reply"
-                if allowed_episodes
-                else ("list_learning_path" if self._asks_for_first_round(message) else "search_episodes")
+                if allowed_episodes or allowed_papers
+                else (
+                    "fetch_paper"
+                    if paper_identifier
+                    else (
+                        "search_papers"
+                        if wants_paper
+                        else ("list_learning_path" if self._asks_for_first_round(message) else "search_episodes")
+                    )
+                )
             )
-        elif action == "draft_reply" and not allowed_episodes:
+        elif action == "draft_reply" and not allowed_episodes and not allowed_papers:
             action = "list_learning_path" if self._asks_for_first_round(message) else "search_episodes"
+
+        if wants_paper and not allowed_papers:
+            if paper_identifier and paper_fetch_rounds < 2:
+                action = "fetch_paper"
+                result["identifier"] = paper_identifier
+            elif action in {"search_episodes", "get_episode_detail", "list_learning_path", "draft_reply"} and paper_search_rounds < 2:
+                action = "search_papers"
+                result["query"] = self._paper_query(message)
 
         action = self._apply_action_limits(
             action,
             allowed_episodes,
+            allowed_papers,
             search_rounds,
             detail_rounds,
             refresh_rounds,
+            paper_search_rounds,
+            paper_fetch_rounds,
             draft_rounds,
         )
 
         if action == "search_episodes" and not str(result.get("query") or "").strip():
             result["query"] = message
+        if action == "search_papers" and (
+            not str(result.get("query") or "").strip()
+            or self._has_cjk(str(result.get("query") or ""))
+        ):
+            result["query"] = self._paper_query(message)
         if action == "list_learning_path" and not str(result.get("topic") or "").strip():
             result["topic"] = self._infer_topic(message)
         if action == "get_episode_detail" and not any(
@@ -378,6 +484,18 @@ class PodcastGuideAgent:
             else:
                 action = "search_episodes"
                 result["query"] = message
+        if action == "fetch_paper" and not any(
+            str(result.get(key) or "").strip()
+            for key in ("identifier", "paper_id", "arxiv_id", "url", "title", "query")
+        ):
+            first_paper = next(iter(allowed_papers.values()), None)
+            if first_paper:
+                result["paper_id"] = first_paper.get("id")
+            elif paper_identifier:
+                result["identifier"] = paper_identifier
+            else:
+                action = "search_papers"
+                result["query"] = self._paper_query(message)
 
         result["action"] = action
         return result
@@ -386,17 +504,24 @@ class PodcastGuideAgent:
         self,
         action: str,
         allowed_episodes: dict[str, dict[str, str]],
+        allowed_papers: dict[str, dict[str, str]],
         search_rounds: int,
         detail_rounds: int,
         refresh_rounds: int,
+        paper_search_rounds: int,
+        paper_fetch_rounds: int,
         draft_rounds: int,
     ) -> str:
         if action == "search_episodes" and search_rounds >= 3:
-            return "draft_reply" if allowed_episodes and draft_rounds < 2 else "fail"
+            return "draft_reply" if (allowed_episodes or allowed_papers) and draft_rounds < 2 else "fail"
         if action == "get_episode_detail" and detail_rounds >= 3:
             return "draft_reply" if allowed_episodes else "search_episodes"
         if action == "refresh_rss" and refresh_rounds >= 1:
             return "search_episodes"
+        if action == "search_papers" and paper_search_rounds >= 2:
+            return "draft_reply" if (allowed_episodes or allowed_papers) and draft_rounds < 2 else "fail"
+        if action == "fetch_paper" and paper_fetch_rounds >= 2:
+            return "draft_reply" if allowed_papers and draft_rounds < 2 else "search_papers"
         if action == "draft_reply" and draft_rounds >= 2:
             return "fail"
         return action
@@ -416,27 +541,41 @@ class PodcastGuideAgent:
         self,
         turn: int,
         allowed_episodes: dict[str, dict[str, str]],
+        allowed_papers: dict[str, dict[str, str]],
         search_rounds: int,
         detail_rounds: int,
         refresh_rounds: int,
+        paper_search_rounds: int,
+        paper_fetch_rounds: int,
         draft_rounds: int,
     ) -> str:
         episodes = self._unique_episode_refs(allowed_episodes)
+        papers = self._unique_paper_refs(allowed_papers)
         episode_lines = [
             f"- {item.get('id')} {item.get('title')} {item.get('url')}"
             for item in episodes
+        ]
+        paper_lines = [
+            f"- {item.get('id')} {item.get('title')} {item.get('abs_url')}"
+            for item in papers
         ]
         return "\n".join(
             [
                 f"turn: {turn}",
                 f"has_episode_evidence: {bool(episodes)}",
                 f"episode_evidence_count: {len(episodes)}",
+                f"has_paper_evidence: {bool(papers)}",
+                f"paper_evidence_count: {len(papers)}",
                 f"search_rounds: {search_rounds}",
                 f"detail_rounds: {detail_rounds}",
                 f"refresh_rounds: {refresh_rounds}",
+                f"paper_search_rounds: {paper_search_rounds}",
+                f"paper_fetch_rounds: {paper_fetch_rounds}",
                 f"draft_rounds: {draft_rounds}",
                 "known_episodes:",
                 *episode_lines[:12],
+                "known_papers:",
+                *paper_lines[:8],
             ]
         )
 
@@ -461,24 +600,49 @@ class PodcastGuideAgent:
             if key:
                 allowed_episodes[key] = episode
 
+    def _merge_paper_refs(
+        self,
+        allowed_papers: dict[str, dict[str, str]],
+        result: ToolResult,
+    ) -> None:
+        for paper in result.papers:
+            paper_id = paper.get("id")
+            url = paper.get("abs_url") or paper.get("pdf_url")
+            key = paper_id or url
+            if key:
+                allowed_papers[key] = paper
+
     def _check_reply_evidence(
         self,
         reply: str,
         allowed_episodes: dict[str, dict[str, str]],
+        allowed_papers: dict[str, dict[str, str]],
     ) -> dict[str, Any]:
         if not reply.strip():
             return {"ok": False, "reason": "回复为空", "extra_queries": []}
 
+        paper_refs = self._unique_paper_refs(allowed_papers)
         allowed_urls = {
             self._clean_url(str(item.get("url") or ""))
             for item in self._unique_episode_refs(allowed_episodes)
             if item.get("url")
         }
+        allowed_urls.update(
+            self._clean_url(str(item.get(key) or ""))
+            for item in paper_refs
+            for key in ("abs_url", "pdf_url")
+            if item.get(key)
+        )
         allowed_titles = [
             self._normalize_title(str(item.get("title") or ""))
             for item in self._unique_episode_refs(allowed_episodes)
             if item.get("title")
         ]
+        allowed_titles.extend(
+            self._normalize_title(str(item.get("title") or ""))
+            for item in paper_refs
+            if item.get("title")
+        )
 
         urls = [self._clean_url(url) for url in re.findall(r"https?://[^\s)）】>]+", reply)]
         unknown_urls = [url for url in urls if url and url not in allowed_urls]
@@ -491,13 +655,13 @@ class PodcastGuideAgent:
         ]
 
         wants_episode_recommendation = any(
-            keyword in reply for keyword in ("推荐", "先听", "这几集", "这集是", "链接")
+            keyword in reply for keyword in ("推荐", "先听", "这几集", "这集是", "论文", "arXiv", "链接")
         )
         has_allowed_url = any(url in allowed_urls for url in urls)
-        if wants_episode_recommendation and allowed_episodes and not has_allowed_url:
+        if wants_episode_recommendation and (allowed_episodes or allowed_papers) and not has_allowed_url:
             return {
                 "ok": False,
-                "reason": "回复像是在推荐单集，但没有附带本轮工具验证过的链接。",
+                "reason": "回复像是在推荐材料，但没有附带本轮工具验证过的链接。",
                 "extra_queries": [],
             }
 
@@ -509,7 +673,7 @@ class PodcastGuideAgent:
                 "extra_queries": extra_queries[:4],
             }
 
-        return {"ok": True, "reason": "所有单集引用均来自本轮工具结果。", "extra_queries": []}
+        return {"ok": True, "reason": "所有材料引用均来自本轮工具结果。", "extra_queries": []}
 
     def _remember_interaction(
         self,
@@ -539,6 +703,53 @@ class PodcastGuideAgent:
             return "RL"
         return "Agent"
 
+    def _asks_for_paper_detail(self, message: str) -> bool:
+        lowered = message.lower()
+        keywords = (
+            "论文",
+            "paper",
+            "arxiv",
+            "技术细节",
+            "方法",
+            "实验",
+            "ablation",
+            "消融",
+            "公式",
+            "读原文",
+            "读一下",
+            "细节",
+        )
+        return any(keyword in lowered for keyword in keywords)
+
+    def _paper_identifier_from_message(self, message: str) -> str:
+        patterns = [
+            r"arxiv\.org/(?:abs|pdf)/([A-Za-z0-9.\-_/]+)",
+            r"\barXiv:([A-Za-z0-9.\-_/]+)",
+            r"\b(\d{4}\.\d{4,5}(?:v\d+)?)\b",
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, message, flags=re.IGNORECASE)
+            if match:
+                identifier = match.group(1).strip()
+                identifier = re.sub(r"\.pdf$", "", identifier, flags=re.IGNORECASE)
+                return identifier.strip("/")
+        return ""
+
+    def _paper_query(self, message: str) -> str:
+        lowered = message.lower()
+        if any(token in lowered for token in ("rag", "deep research", "检索", "知识库", "搜索")):
+            return "retrieval augmented generation agents deep research"
+        if any(token in lowered for token in ("grpo", "dpo", "sft", "rl", "强化", "reward", "后训练")):
+            return "reinforcement learning language model agents tool use"
+        if any(token in lowered for token in ("评估", "安全", "验证", "evaluation", "benchmark")):
+            return "LLM agents evaluation benchmark tool use reliability"
+        if any(token in lowered for token in ("agent", "智能体", "工具", "工作流", "落地")):
+            return "LLM agents tool use planning workflow evaluation"
+        return message
+
+    def _has_cjk(self, text: str) -> bool:
+        return bool(re.search(r"[\u4e00-\u9fff]", text))
+
     def _safe_int(self, value: Any, fallback: int, minimum: int, maximum: int) -> int:
         try:
             parsed = int(value)
@@ -551,6 +762,17 @@ class PodcastGuideAgent:
         unique: list[dict[str, str]] = []
         for item in episodes_by_key.values():
             key = item.get("id") or item.get("url") or item.get("title")
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            unique.append(item)
+        return unique
+
+    def _unique_paper_refs(self, papers_by_key: dict[str, dict[str, str]]) -> list[dict[str, str]]:
+        seen: set[str] = set()
+        unique: list[dict[str, str]] = []
+        for item in papers_by_key.values():
+            key = item.get("id") or item.get("abs_url") or item.get("title")
             if not key or key in seen:
                 continue
             seen.add(key)

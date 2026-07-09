@@ -67,6 +67,25 @@ def _is_transient_send_error(code: Any, msg: Any) -> bool:
     )
 
 
+def _needs_paper_progress_notice(text: str) -> bool:
+    lowered = text.lower()
+    return any(
+        marker in lowered
+        for marker in (
+            "论文",
+            "paper",
+            "arxiv",
+            "技术细节",
+            "方法",
+            "实验",
+            "ablation",
+            "消融",
+            "公式",
+            "读原文",
+        )
+    )
+
+
 class FeishuPodcastGuideService:
     def __init__(self, config: Config) -> None:
         require_feishu_config(config)
@@ -166,6 +185,9 @@ class FeishuPodcastGuideService:
             if message_type != "text":
                 self.send_text(chat_id, "我第一版先处理文字消息。你可以问：Agent 从哪几集开始听？")
                 return
+
+            if _needs_paper_progress_notice(text):
+                self.send_text(chat_id, "收到，我先查 arXiv / PDF 证据，论文模式可能需要几十秒。")
 
             reply = self.agent.reply(text, chat_id=chat_id)
             self.send_text_chunks(chat_id, reply)
