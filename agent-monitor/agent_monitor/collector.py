@@ -429,13 +429,37 @@ def _event_io(event: dict[str, Any]) -> dict[str, Any]:
     if name == "tool_result":
         return {
             "input": _pick(event, ("tool", "arguments")),
-            "output": _pick(event, ("ok", "error", "metadata", "content", "episodes", "papers", "episode_count", "paper_count", "result")),
+            "output": _pick(event, ("ok", "error", "verified", "evidence_level", "metadata", "content", "chars", "episodes", "papers", "episode_count", "paper_count", "result")),
+            "meta": meta,
+        }
+    if name == "material_search_results":
+        return {
+            "input": _pick(event, ("query",)),
+            "output": _pick(event, ("books", "results", "summary")),
+            "meta": meta,
+        }
+    if name == "verified_materials_context":
+        return {
+            "input": _pick(event, ("queries", "phase")),
+            "output": _pick(event, ("chars", "preview", "context")),
+            "meta": meta,
+        }
+    if name in {"verified_materials_loaded", "personal_context_loaded", "personal_evidence_context_loaded", "material_scoring_loaded"}:
+        return {
+            "input": _pick(event, ("stage", "text")),
+            "output": _pick(event, ("chars", "count", "summary", "preview", "context", "content")),
+            "meta": meta,
+        }
+    if name == "evidence_aware_material_scoring":
+        return {
+            "input": _pick(event, ("raw_text", "parse_error")),
+            "output": _pick(event, ("scoring", "primary", "primary_problem", "should_output_count")),
             "meta": meta,
         }
     if "gate" in name or "check" in name:
         return {
-            "input": _pick(event, ("reply_chars", "queries", "extra_queries", "final_reply_chars", "verified_materials_context_chars")),
-            "output": _pick(event, ("ok", "reason", "extra_queries", "raw_text")),
+            "input": _pick(event, ("reply_chars", "queries", "extra_queries", "final_reply_chars", "verified_materials_context_chars", "turn")),
+            "output": _pick(event, ("ok", "reason", "extra_queries", "raw_text", "max_supplemental_rounds")),
             "meta": meta,
         }
     if name == "final_reply":
@@ -450,7 +474,7 @@ def _event_io(event: dict[str, Any]) -> dict[str, Any]:
             "output": _pick(event, ("elapsed_ms", "chars")),
             "meta": meta,
         }
-    if name in {"progress", "personal_context_loaded", "weread_context_loaded", "verified_materials_loaded"}:
+    if name in {"progress", "weread_context_loaded"}:
         return {
             "input": _pick(event, ("stage", "text")),
             "output": _pick(event, ("chars", "count", "summary")),

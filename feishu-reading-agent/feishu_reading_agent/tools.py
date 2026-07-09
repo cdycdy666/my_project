@@ -93,6 +93,7 @@ class ToolRegistry:
                 verified=result.verified,
                 evidence_level=result.evidence_level,
                 chars=len(result.content),
+                content=result.content,
                 metadata=result.metadata,
                 error=result.error,
             )
