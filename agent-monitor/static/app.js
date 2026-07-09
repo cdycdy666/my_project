@@ -4,6 +4,7 @@ const state = {
   runs: [],
   selectedAgent: "",
   selectedRunId: null,
+  loadedRunId: null,
   mode: "runs",
   timeRange: "24h",
   statusFilter: "all",
@@ -114,6 +115,49 @@ function runNote(run) {
   return run.final_preview ? run.final_preview.replace(/\s+/g, " ").slice(0, 120) : "点击查看每个模块的输入与输出。";
 }
 
+function objectKeys(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? Object.keys(value) : [];
+}
+
+function ioFieldKeys(value) {
+  if (!value) return [];
+  if (typeof value !== "object") return ["text"];
+  if (Array.isArray(value)) return [`array(${value.length})`];
+  return Object.keys(value);
+}
+
+function nodeIoText(event) {
+  const io = event.io || {};
+  const input = ioFieldKeys(io.input).slice(0, 3);
+  const output = ioFieldKeys(io.output).slice(0, 3);
+  const moreInput = ioFieldKeys(io.input).length > input.length ? "+" : "";
+  const moreOutput = ioFieldKeys(io.output).length > output.length ? "+" : "";
+  if (!input.length && !output.length) return "";
+  return [
+    input.length ? `IN ${input.join(", ")}${moreInput}` : "",
+    output.length ? `OUT ${output.join(", ")}${moreOutput}` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function preferredEventIndex(events) {
+  const important = [
+    "llm_request",
+    "llm_response",
+    "agent_next_action",
+    "tool_result",
+    "weread_response",
+    "evidence_aware_material_scoring",
+    "final_reply",
+    "final_reply_material_check",
+  ];
+  const exact = events.findIndex((event) => important.includes(event.event));
+  if (exact >= 0) return exact;
+  const byKind = events.findIndex((event) => ["llm", "tool", "planner", "gate", "warn"].includes(event.kind));
+  return byKind >= 0 ? byKind : 0;
+}
+
 async function fetchJson(url) {
   const response = await fetch(url, { cache: "no-store" });
   if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
@@ -185,6 +229,7 @@ function renderAgents() {
     card.addEventListener("click", async () => {
       state.selectedAgent = card.dataset.agent || "";
       state.selectedRunId = null;
+      state.loadedRunId = null;
       await refresh();
     });
   });
@@ -275,6 +320,7 @@ function renderRuns() {
     row.addEventListener("click", () => {
       state.mode = "runs";
       state.selectedRunId = row.dataset.run;
+      state.loadedRunId = null;
       setModeButtons();
       loadRunDetail(state.selectedRunId);
       renderRuns();
@@ -294,14 +340,19 @@ async function loadRunDetail(traceId) {
 
 function renderRunDetail(detail) {
   const counters = detail.counters || {};
+  const events = detail.events || [];
+  if (state.loadedRunId !== detail.trace_id) {
+    state.selectedEventIndex = preferredEventIndex(events);
+    state.loadedRunId = detail.trace_id;
+  }
   $("detailHeader").innerHTML = `
     <h2 class="detail-title">${escapeHtml(detail.agent_name)} · ${escapeHtml(detail.flow)}</h2>
     <div class="detail-subtitle">
       ${escapeHtml(detail.trace_id)} · ${formatTime(detail.started_at)} · ${formatDuration(detail.duration_ms)}
       · Events ${counters.events ?? 0} · LLM ${counters.llm ?? 0} · Tool ${counters.tools ?? 0} · Gate ${counters.gate_failures ?? 0}/${counters.gates ?? 0}
     </div>`;
-  renderFlow(detail.events || [], false);
-  renderInspector((detail.events || [])[state.selectedEventIndex] || (detail.events || [])[0]);
+  renderFlow(events, false);
+  renderInspector(events[state.selectedEventIndex] || events[0]);
 }
 
 function renderArchitecture() {
@@ -334,6 +385,7 @@ function renderFlow(events, isArchitecture) {
               <div class="node-kind">${escapeHtml(kind)}</div>
               <div class="node-label">${escapeHtml(event.label || event.event || "event")}</div>
               <div class="node-summary">${escapeHtml(event.summary || event.ts || "")}</div>
+              ${!isArchitecture && nodeIoText(event) ? `<div class="node-io">${escapeHtml(nodeIoText(event))}</div>` : ""}
             </button>`;
         })
         .join("")}</div>`
@@ -382,6 +434,62 @@ function renderMessages(value) {
         </article>`;
     })
     .join("")}</div>`;
+}
+
+function previewText(value) {
+  if (value === null || value === undefined || value === "") return "empty";
+  if (typeof value === "string") return value.replace(/\s+/g, " ").slice(0, 360);
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) {
+    if (isChatMessages("messages", value)) {
+      return value
+        .map((message) => `${message.role || "message"}: ${typeof message.content === "string" ? message.content : JSON.stringify(message.content)}`)
+        .join(" | ")
+        .replace(/\s+/g, " ")
+        .slice(0, 360);
+    }
+    return `array(${value.length}) ${JSON.stringify(value.slice(0, 2), null, 0).slice(0, 300)}`;
+  }
+  if (typeof value === "object") {
+    const preferred = ["response_text", "text", "content", "preview", "raw_text", "reason", "query", "summary"];
+    const key = preferred.find((item) => typeof value[item] === "string" && value[item]);
+    if (key) return `${key}: ${String(value[key]).replace(/\s+/g, " ").slice(0, 320)}`;
+    return `object(${objectKeys(value).length}) ${objectKeys(value).slice(0, 8).join(", ")}`;
+  }
+  return String(value);
+}
+
+function renderIoPreview(title, value) {
+  if (!ioHasContent(value)) {
+    return `
+      <section class="io-preview-card">
+        <div class="io-preview-title">${escapeHtml(title)}</div>
+        <div class="io-preview-empty">empty</div>
+      </section>`;
+  }
+  if (typeof value !== "object" || Array.isArray(value)) {
+    return `
+      <section class="io-preview-card">
+        <div class="io-preview-title">${escapeHtml(title)}</div>
+        <div class="io-preview-row">
+          <span class="field-name">value</span>
+          <span>${escapeHtml(previewText(value))}</span>
+        </div>
+      </section>`;
+  }
+  return `
+    <section class="io-preview-card">
+      <div class="io-preview-title">${escapeHtml(title)}</div>
+      ${Object.entries(value)
+        .map(
+          ([key, fieldValue]) => `
+            <div class="io-preview-row">
+              <span class="field-name">${escapeHtml(key)}</span>
+              <span>${escapeHtml(previewText(fieldValue))}</span>
+            </div>`
+        )
+        .join("")}
+    </section>`;
 }
 
 function renderField(key, value) {
@@ -445,6 +553,10 @@ function renderInspector(event) {
       <span>${escapeHtml(event.kind || "event")}</span>
       <span>${formatTime(event.ts)}</span>
       ${event.summary ? `<span>${escapeHtml(event.summary)}</span>` : ""}
+    </div>
+    <div class="io-preview-grid">
+      ${renderIoPreview("输入预览", io.input)}
+      ${renderIoPreview("输出预览", io.output)}
     </div>
     <div class="io-grid">
       <section class="io-card input-card">
