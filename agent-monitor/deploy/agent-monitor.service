@@ -11,8 +11,8 @@ Environment=AGENT_MONITOR_PORT=8769
 ExecStart=/usr/bin/python3 /opt/agent-monitor/run.py
 Restart=always
 RestartSec=5
-StandardOutput=append:/opt/agent-monitor/logs/service.log
-StandardError=append:/opt/agent-monitor/logs/service.err.log
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target

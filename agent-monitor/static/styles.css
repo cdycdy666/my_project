@@ -28,8 +28,7 @@ body {
   color: var(--text);
 }
 
-button,
-select {
+button {
   font: inherit;
 }
 
@@ -201,11 +200,22 @@ h1 {
   margin: 18px 0 14px;
 }
 
+.toolbar-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
 .segmented {
   display: inline-flex;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius);
   overflow: hidden;
+}
+
+.segmented.subtle {
+  border-color: var(--line);
 }
 
 .seg {
@@ -218,6 +228,12 @@ h1 {
   cursor: pointer;
 }
 
+.seg.compact {
+  min-width: 62px;
+  padding: 9px 11px;
+  font-size: 13px;
+}
+
 .seg:last-child {
   border-right: 0;
 }
@@ -227,13 +243,11 @@ h1 {
   background: #1b2430;
 }
 
-.select {
-  min-width: 210px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  color: var(--text);
-  background: #111720;
-  padding: 9px 12px;
+.scope-label {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: right;
 }
 
 .workspace {
@@ -498,7 +512,7 @@ h1 {
     flex-direction: column;
   }
 
-  .select,
+  .toolbar-group,
   .segmented {
     width: 100%;
   }

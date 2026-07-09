@@ -5,6 +5,8 @@ const state = {
   selectedAgent: "",
   selectedRunId: null,
   mode: "runs",
+  timeRange: "24h",
+  statusFilter: "all",
   selectedEventIndex: 0,
 };
 
@@ -33,6 +35,48 @@ function formatDuration(ms) {
   return `${Math.floor(seconds / 60)}m ${Math.round(seconds % 60)}s`;
 }
 
+function statusText(status) {
+  return {
+    success: "success",
+    warning: "warning",
+    failed: "failed",
+    running: "running",
+  }[status] || status || "-";
+}
+
+function rangeLabel() {
+  return { "24h": "过去 24 小时", "7d": "过去 7 天", all: "全部记录" }[state.timeRange] || "全部记录";
+}
+
+function rangeStart() {
+  if (state.timeRange === "all") return null;
+  const generated = state.summary?.generated_at ? new Date(state.summary.generated_at) : new Date();
+  const hours = state.timeRange === "7d" ? 24 * 7 : 24;
+  return new Date(generated.getTime() - hours * 60 * 60 * 1000);
+}
+
+function isWithinRange(value) {
+  const start = rangeStart();
+  if (!start) return true;
+  if (!value) return false;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return false;
+  return date >= start;
+}
+
+function visibleRuns() {
+  return state.runs.filter((run) => {
+    const time = run.ended_at || run.started_at;
+    const timeOk = isWithinRange(time);
+    const statusOk = state.statusFilter === "all" || run.status === state.statusFilter;
+    return timeOk && statusOk;
+  });
+}
+
+function pickDefaultRun(runs) {
+  return runs.find((run) => run.kind === "trace") || runs[0] || null;
+}
+
 async function fetchJson(url) {
   const response = await fetch(url, { cache: "no-store" });
   if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
@@ -54,35 +98,35 @@ async function refresh() {
 }
 
 function renderAll() {
-  renderAgentFilter();
   renderAgents();
   renderMetrics();
   renderAlerts();
   renderRuns();
   if (state.mode === "architecture") {
     renderArchitecture();
-  } else if (state.selectedRunId) {
+  } else if (visibleRuns().some((run) => run.trace_id === state.selectedRunId)) {
     loadRunDetail(state.selectedRunId);
-  } else if (state.runs[0]) {
-    state.selectedRunId = state.runs[0].trace_id;
+  } else if (pickDefaultRun(visibleRuns())) {
+    state.selectedRunId = pickDefaultRun(visibleRuns()).trace_id;
     loadRunDetail(state.selectedRunId);
   } else {
     renderEmptyDetail();
   }
 }
 
-function renderAgentFilter() {
-  const select = $("agentFilter");
-  const current = select.value || state.selectedAgent;
-  select.innerHTML = `<option value="">All agents</option>${(state.summary?.agents || [])
-    .map((agent) => `<option value="${agent.id}">${escapeHtml(agent.name)}</option>`)
-    .join("")}`;
-  select.value = current;
-}
-
 function renderAgents() {
   const agents = state.summary?.agents || [];
-  $("agentList").innerHTML = agents
+  const activeServices = state.summary?.metrics?.active_services ?? 0;
+  const allCard = `
+    <article class="agent-card all-card ${state.selectedAgent ? "" : "active"}" data-agent="" style="--accent:var(--cyan)">
+      <h2>All Agents</h2>
+      <div class="agent-role">跨服务运行记录、证据门和错误信号总览</div>
+      <div class="status-line">
+        <span><span class="dot ${activeServices ? "good" : "warn"}"></span> ${activeServices}/${agents.length} active</span>
+        <span>${rangeLabel()}</span>
+      </div>
+    </article>`;
+  const agentCards = agents
     .map((agent) => {
       const service = agent.services?.[0] || {};
       const statusClass = service.active === "active" ? "good" : service.active === "unknown" ? "warn" : "bad";
@@ -98,10 +142,11 @@ function renderAgents() {
         </article>`;
     })
     .join("");
+  $("agentList").innerHTML = allCard + agentCards;
 
   document.querySelectorAll(".agent-card").forEach((card) => {
     card.addEventListener("click", async () => {
-      state.selectedAgent = card.dataset.agent === state.selectedAgent ? "" : card.dataset.agent;
+      state.selectedAgent = card.dataset.agent || "";
       state.selectedRunId = null;
       await refresh();
     });
@@ -110,12 +155,13 @@ function renderAgents() {
 
 function renderMetrics() {
   const metrics = state.summary?.metrics || {};
+  const runs = visibleRuns();
   const rows = [
     ["Agents", metrics.agent_count ?? 0],
-    ["Active services", metrics.active_services ?? 0],
-    ["Recent runs", metrics.recent_runs ?? 0],
-    ["Warnings", metrics.warning_runs ?? 0],
-    ["Failures", metrics.failed_runs ?? 0],
+    ["Active", metrics.active_services ?? 0],
+    [state.timeRange === "all" ? "Runs" : state.timeRange, runs.length],
+    ["Warnings", runs.filter((run) => run.status === "warning").length],
+    ["Failures", runs.filter((run) => run.status === "failed").length],
   ];
   $("metrics").innerHTML = rows
     .map(
@@ -129,9 +175,11 @@ function renderMetrics() {
 }
 
 function renderAlerts() {
+  const start = rangeStart();
   const alerts = (state.summary?.agents || [])
     .filter((agent) => !state.selectedAgent || agent.id === state.selectedAgent)
     .flatMap((agent) => (agent.recent_alerts || []).map((alert) => ({ ...alert, agentName: agent.name })))
+    .filter((alert) => (start ? isWithinRange(alert.ts) : true))
     .slice(0, 8);
   $("alertList").innerHTML = alerts.length
     ? alerts
@@ -143,11 +191,15 @@ function renderAlerts() {
             </div>`
         )
         .join("")
-    : `<div class="alert-item">最近没有错误级日志。</div>`;
+    : `<div class="alert-item">${rangeLabel()}没有错误级日志。</div>`;
 }
 
 function renderRuns() {
-  const runs = state.runs;
+  const runs = visibleRuns();
+  const agentName = state.selectedAgent
+    ? state.summary?.agents?.find((agent) => agent.id === state.selectedAgent)?.name || state.selectedAgent
+    : "All Agents";
+  $("scopeLabel").textContent = `${agentName} · ${rangeLabel()} · ${state.statusFilter === "all" ? "全部状态" : state.statusFilter}`;
   $("runList").innerHTML = runs.length
     ? runs
         .map((run) => {
@@ -157,7 +209,7 @@ function renderRuns() {
             <article class="run-row ${active}" data-run="${escapeHtml(run.trace_id)}">
               <div class="run-top">
                 <div class="run-title">${escapeHtml(run.title || run.trace_id)}</div>
-                <span class="badge ${escapeHtml(run.status)}">${escapeHtml(run.status)}</span>
+                <span class="badge ${escapeHtml(run.status)}">${escapeHtml(statusText(run.status))}</span>
               </div>
               <div class="run-meta">
                 <span>${escapeHtml(run.agent_name)}</span>
@@ -209,8 +261,8 @@ function renderRunDetail(detail) {
 function renderArchitecture() {
   const agents = (state.architecture?.agents || []).filter((agent) => !state.selectedAgent || agent.id === state.selectedAgent);
   $("detailHeader").innerHTML = `
-    <h2 class="detail-title">Architecture Map</h2>
-    <div class="detail-subtitle">静态结构用于理解边界；点击 Runs 可以切回真实执行轨迹。</div>`;
+    <h2 class="detail-title">架构视图</h2>
+    <div class="detail-subtitle">静态结构用于理解边界；点击运行记录可以切回真实执行轨迹。</div>`;
   const nodes = agents.flatMap((agent) =>
     (agent.nodes || []).map((node, index) => ({
       index: index + 1,
@@ -259,7 +311,7 @@ function renderInspector(event) {
 }
 
 function renderEmptyDetail(message = "暂无可展示细节。") {
-  $("detailHeader").innerHTML = `<h2 class="detail-title">No Run Selected</h2><div class="detail-subtitle">${escapeHtml(message)}</div>`;
+  $("detailHeader").innerHTML = `<h2 class="detail-title">没有选中的运行</h2><div class="detail-subtitle">${escapeHtml(message)}</div>`;
   $("flowView").innerHTML = `<div class="empty">${escapeHtml(message)}</div>`;
   $("eventInspector").innerHTML = "";
 }
@@ -270,11 +322,6 @@ function setModeButtons() {
 }
 
 $("refreshBtn").addEventListener("click", () => refresh().catch((error) => renderEmptyDetail(error.message)));
-$("agentFilter").addEventListener("change", async (event) => {
-  state.selectedAgent = event.target.value;
-  state.selectedRunId = null;
-  await refresh();
-});
 $("showRunsBtn").addEventListener("click", () => {
   state.mode = "runs";
   setModeButtons();
@@ -285,6 +332,22 @@ $("showArchBtn").addEventListener("click", () => {
   state.selectedRunId = null;
   setModeButtons();
   renderArchitecture();
+});
+document.querySelectorAll("[data-range]").forEach((button) => {
+  button.addEventListener("click", () => {
+    state.timeRange = button.dataset.range || "24h";
+    state.selectedRunId = null;
+    document.querySelectorAll("[data-range]").forEach((item) => item.classList.toggle("active", item === button));
+    renderAll();
+  });
+});
+document.querySelectorAll("[data-status]").forEach((button) => {
+  button.addEventListener("click", () => {
+    state.statusFilter = button.dataset.status || "all";
+    state.selectedRunId = null;
+    document.querySelectorAll("[data-status]").forEach((item) => item.classList.toggle("active", item === button));
+    renderAll();
+  });
 });
 
 refresh().catch((error) => {

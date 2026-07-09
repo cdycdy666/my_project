@@ -21,7 +21,7 @@
 
       <main class="layout">
         <aside class="rail">
-          <div class="section-title">Services</div>
+          <div class="section-title">Agents</div>
           <div id="agentList" class="agent-list"></div>
           <div class="section-title">Alerts</div>
           <div id="alertList" class="alert-list"></div>
@@ -30,20 +30,30 @@
         <section class="stage">
           <div id="metrics" class="metrics"></div>
           <div class="toolbar">
-            <div class="segmented" role="tablist">
-              <button id="showRunsBtn" class="seg active" type="button">Runs</button>
-              <button id="showArchBtn" class="seg" type="button">Architecture</button>
+            <div class="toolbar-group">
+              <div class="segmented" role="tablist" aria-label="视图">
+                <button id="showRunsBtn" class="seg active" type="button">运行记录</button>
+                <button id="showArchBtn" class="seg" type="button">架构视图</button>
+              </div>
+              <div class="segmented subtle" role="group" aria-label="时间范围">
+                <button class="seg compact active" data-range="24h" type="button">24h</button>
+                <button class="seg compact" data-range="7d" type="button">7d</button>
+                <button class="seg compact" data-range="all" type="button">All</button>
+              </div>
+              <div class="segmented subtle" role="group" aria-label="状态筛选">
+                <button class="seg compact active" data-status="all" type="button">全部</button>
+                <button class="seg compact" data-status="warning" type="button">Warning</button>
+                <button class="seg compact" data-status="failed" type="button">Failed</button>
+              </div>
             </div>
-            <select id="agentFilter" class="select" aria-label="选择 Agent">
-              <option value="">All agents</option>
-            </select>
+            <div id="scopeLabel" class="scope-label"></div>
           </div>
 
           <div class="workspace">
             <section class="runs-panel">
               <div class="panel-heading">
                 <div>
-                  <div class="section-title">Recent Runs</div>
+                  <div class="section-title">Run Timeline</div>
                   <p class="hint">trace、证据门、工具调用和普通服务日志会在这里汇合。</p>
                 </div>
               </div>
