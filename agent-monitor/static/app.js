@@ -653,41 +653,111 @@ function renderArchitecture() {
   const agents = (state.architecture?.agents || []).filter((agent) => !state.selectedAgent || agent.id === state.selectedAgent);
   $("detailHeader").innerHTML = `
     <h2 class="detail-title">架构视图</h2>
-    <div class="detail-subtitle">语义级步骤用于理解系统边界、预期输入输出和风险；运行记录保留事件级 trace。</div>`;
+    <div class="detail-subtitle">设计态系统蓝图：模块职责、数据流、外部依赖和输入输出契约。运行记录页保留执行态 trace。</div>`;
   document.querySelector(".detail-panel")?.classList.remove("flow-collapsed");
-  const nodes = agents.flatMap((agent) =>
-    (agent.nodes || []).map((node, index) => ({
-      index: index + 1,
-      kind: node.kind,
-      label: `${agent.name}: ${node.label}`,
-      summary: node.goal || agent.role,
-      event: "architecture_step",
-      io: {
-        input: {
-          goal: node.goal,
-          expected_input: node.input || [],
-        },
-        output: {
-          expected_output: node.output || [],
-          risk: node.risk || [],
-        },
-        meta: {
-          agent: agent.name,
-          step_id: node.id,
-          dependencies: node.depends || [],
-          role: agent.role,
-        },
-      },
-      raw: node,
-    }))
-  );
+  const nodes = architectureEvents(agents);
   state.inspectorTab = "summary";
-  renderFlow(nodes, true);
-  renderInspector(nodes[0]);
+  renderArchitectureBlueprint(agents, nodes);
+  renderInspector(nodes[state.selectedEventIndex] || nodes[0]);
+}
+
+function architectureEvents(agents) {
+  let index = 0;
+  return agents.flatMap((agent) =>
+    (agent.nodes || []).map((node) => {
+      index += 1;
+      return {
+        index,
+        kind: node.kind,
+        label: node.label,
+        summary: node.goal || agent.role,
+        event: "architecture_step",
+        io: {
+          input: {
+            goal: node.goal,
+            expected_input: node.input || [],
+          },
+          output: {
+            expected_output: node.output || [],
+            risk: node.risk || [],
+          },
+          meta: {
+            agent: agent.name,
+            step_id: node.id,
+            dependencies: node.depends || [],
+            role: agent.role,
+          },
+        },
+        raw: { ...node, agent: agent.name, role: agent.role },
+      };
+    })
+  );
+}
+
+function architectureMetric(value, label) {
+  const count = Array.isArray(value) ? value.length : value ? 1 : 0;
+  return `<span><strong>${count}</strong>${escapeHtml(label)}</span>`;
+}
+
+function renderArchitectureBlueprint(agents, events) {
+  state.selectedEventIndex = Math.min(state.selectedEventIndex, Math.max(events.length - 1, 0));
+  let cursor = 0;
+  $("flowView").classList.add("architecture-view");
+  $("flowView").innerHTML = agents.length
+    ? `<div class="architecture-blueprint">
+        ${agents
+          .map((agent) => {
+            const agentNodes = agent.nodes || [];
+            const laneStart = cursor;
+            cursor += agentNodes.length;
+            return `
+              <section class="architecture-lane" style="--accent:${escapeHtml(agent.accent || "var(--cyan)")}">
+                <div class="architecture-lane-head">
+                  <div>
+                    <div class="panel-kicker">System Blueprint</div>
+                    <h3>${escapeHtml(agent.name)}</h3>
+                  </div>
+                  <p>${escapeHtml(agent.role)}</p>
+                </div>
+                <div class="architecture-module-grid">
+                  ${agentNodes
+                    .map((node, offset) => {
+                      const eventIndex = laneStart + offset;
+                      const selected = eventIndex === state.selectedEventIndex ? "selected" : "";
+                      return `
+                        <button class="architecture-module ${escapeHtml(node.kind || "event")} ${selected}" data-arch-index="${eventIndex}" type="button">
+                          <div class="module-kind">${escapeHtml(node.kind || "module")}</div>
+                          <div class="module-title">${escapeHtml(node.label || node.id || "module")}</div>
+                          <div class="module-goal">${escapeHtml(node.goal || "")}</div>
+                          <div class="module-metrics">
+                            ${architectureMetric(node.input, "输入")}
+                            ${architectureMetric(node.output, "输出")}
+                            ${architectureMetric(node.depends, "依赖")}
+                            ${architectureMetric(node.risk, "风险")}
+                          </div>
+                        </button>`;
+                    })
+                    .join("")}
+                </div>
+              </section>`;
+          })
+          .join("")}
+      </div>`
+    : `<div class="empty">没有架构数据。</div>`;
+
+  document.querySelectorAll("[data-arch-index]").forEach((node) => {
+    node.addEventListener("click", () => {
+      state.selectedEventIndex = Number(node.dataset.archIndex || 0);
+      state.inspectorTab = "summary";
+      renderArchitectureBlueprint(agents, events);
+      renderInspector(events[state.selectedEventIndex]);
+    });
+  });
 }
 
 function renderFlow(events, isArchitecture) {
   state.selectedEventIndex = Math.min(state.selectedEventIndex, Math.max(events.length - 1, 0));
+  $("flowView").classList.remove("architecture-view");
   $("flowView").innerHTML = events.length
     ? `<div class="flow-track">${events
         .map((event, index) => {
@@ -977,6 +1047,7 @@ function renderInspector(event) {
 
 function renderEmptyDetail(message = "暂无可展示细节。") {
   document.querySelector(".detail-panel")?.classList.remove("flow-collapsed");
+  $("flowView").classList.remove("architecture-view");
   $("detailHeader").innerHTML = `<h2 class="detail-title">没有选中的运行</h2><div class="detail-subtitle">${escapeHtml(message)}</div>`;
   $("flowView").innerHTML = `<div class="empty">${escapeHtml(message)}</div>`;
   $("eventInspector").innerHTML = "";

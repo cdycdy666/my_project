@@ -430,6 +430,11 @@ body[data-view="architecture"] .runs-panel {
   display: none;
 }
 
+body[data-view="architecture"] .flow-view {
+  flex: 0 0 min(438px, 50vh);
+  padding: 14px;
+}
+
 .runs-panel,
 .detail-panel {
   min-height: 0;
@@ -611,6 +616,147 @@ body[data-view="architecture"] .runs-panel {
   padding: 12px 14px;
   border-bottom: 1px solid var(--line);
   overflow: auto;
+}
+
+.flow-view.architecture-view {
+  background:
+    linear-gradient(rgba(121, 230, 243, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(121, 230, 243, 0.035) 1px, transparent 1px),
+    rgba(9, 12, 18, 0.38);
+  background-size: 28px 28px;
+}
+
+.architecture-blueprint {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 14px;
+  min-width: 0;
+}
+
+.architecture-lane {
+  min-width: 0;
+  border: 1px solid rgba(58, 70, 84, 0.82);
+  border-radius: var(--radius);
+  background: rgba(13, 18, 26, 0.92);
+  overflow: hidden;
+  box-shadow: inset 3px 0 0 var(--accent, var(--cyan));
+}
+
+.architecture-lane-head {
+  display: grid;
+  grid-template-columns: minmax(0, 0.42fr) minmax(0, 0.58fr);
+  gap: 12px;
+  border-bottom: 1px solid rgba(58, 70, 84, 0.56);
+  padding: 12px;
+}
+
+.architecture-lane-head h3 {
+  margin: 5px 0 0;
+  font-size: 15px;
+  line-height: 1.2;
+}
+
+.architecture-lane-head p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.architecture-module-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  gap: 10px;
+  padding: 12px;
+}
+
+.architecture-module {
+  min-height: 164px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text);
+  background: linear-gradient(180deg, rgba(18, 24, 33, 0.96), rgba(12, 17, 24, 0.96));
+  padding: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.architecture-module:hover {
+  border-color: var(--line-strong);
+  background: #151c27;
+}
+
+.architecture-module.selected {
+  border-color: var(--accent, var(--cyan));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent, var(--cyan)) 36%, transparent);
+}
+
+.architecture-module.llm,
+.architecture-module.planner {
+  background: linear-gradient(180deg, rgba(17, 25, 42, 0.98), rgba(12, 17, 27, 0.98));
+}
+
+.architecture-module.tool,
+.architecture-module.storage {
+  background: linear-gradient(180deg, rgba(18, 30, 24, 0.96), rgba(12, 19, 18, 0.96));
+}
+
+.architecture-module.gate {
+  background: linear-gradient(180deg, rgba(34, 28, 17, 0.96), rgba(22, 18, 13, 0.96));
+}
+
+.module-kind {
+  display: inline-flex;
+  border: 1px solid rgba(121, 230, 243, 0.28);
+  border-radius: 999px;
+  color: var(--cyan);
+  padding: 3px 7px;
+  font-size: 10px;
+  line-height: 1.1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.module-title {
+  margin-top: 9px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.module-goal {
+  display: -webkit-box;
+  margin-top: 8px;
+  min-height: 44px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.module-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.module-metrics span {
+  border: 1px solid rgba(58, 70, 84, 0.62);
+  border-radius: 6px;
+  color: var(--muted);
+  background: rgba(9, 12, 18, 0.58);
+  padding: 6px;
+  font-size: 11px;
+  line-height: 1.1;
+}
+
+.module-metrics strong {
+  margin-right: 5px;
+  color: var(--text);
+  font-size: 13px;
 }
 
 .flow-track {
