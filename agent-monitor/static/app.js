@@ -5,8 +5,9 @@ const state = {
   selectedAgent: "",
   selectedRunId: null,
   loadedRunId: null,
-  mode: "runs",
+  mode: "overview",
   runTraceMode: "steps",
+  flowCollapsed: false,
   inspectorTab: "summary",
   timeRange: "24h",
   statusFilter: "all",
@@ -67,13 +68,23 @@ function isWithinRange(value) {
   return date >= start;
 }
 
-function visibleRuns() {
+function runsInRange() {
   return state.runs.filter((run) => {
     const time = run.ended_at || run.started_at;
-    const timeOk = isWithinRange(time);
-    const statusOk = state.statusFilter === "all" || run.status === state.statusFilter;
-    return timeOk && statusOk;
+    return isWithinRange(time);
   });
+}
+
+function visibleRuns() {
+  return runsInRange().filter((run) => state.statusFilter === "all" || run.status === state.statusFilter);
+}
+
+function visibleAlerts() {
+  const start = rangeStart();
+  return (state.summary?.agents || [])
+    .filter((agent) => !state.selectedAgent || agent.id === state.selectedAgent)
+    .flatMap((agent) => (agent.recent_alerts || []).map((alert) => ({ ...alert, agentName: agent.name, agentId: agent.id })))
+    .filter((alert) => (start ? isWithinRange(alert.ts) : true));
 }
 
 function pickDefaultRun(runs) {
@@ -344,8 +355,17 @@ async function refresh() {
 function renderAll() {
   renderAgents();
   renderMetrics();
-  renderAlerts();
+  renderAlertsPage();
   renderRuns();
+  setViewButtons();
+  setViewVisibility();
+  if (state.mode === "overview") {
+    renderOverview();
+    return;
+  }
+  if (state.mode === "alerts") {
+    return;
+  }
   if (state.mode === "architecture") {
     renderArchitecture();
   } else if (visibleRuns().some((run) => run.trace_id === state.selectedRunId)) {
@@ -400,7 +420,7 @@ function renderAgents() {
 
 function renderMetrics() {
   const metrics = state.summary?.metrics || {};
-  const runs = visibleRuns();
+  const runs = runsInRange();
   const rows = [
     ["Agents", metrics.agent_count ?? 0],
     ["Active", metrics.active_services ?? 0],
@@ -419,24 +439,109 @@ function renderMetrics() {
     .join("");
 }
 
-function renderAlerts() {
-  const start = rangeStart();
-  const alerts = (state.summary?.agents || [])
+function renderOverview() {
+  const runs = runsInRange();
+  const alerts = visibleAlerts();
+  const agents = state.summary?.agents || [];
+  const recentRuns = runs.slice(0, 4);
+  const healthRows = agents
     .filter((agent) => !state.selectedAgent || agent.id === state.selectedAgent)
-    .flatMap((agent) => (agent.recent_alerts || []).map((alert) => ({ ...alert, agentName: agent.name })))
-    .filter((alert) => (start ? isWithinRange(alert.ts) : true))
-    .slice(0, 8);
-  $("alertList").innerHTML = alerts.length
-    ? alerts
-        .map(
-          (alert) => `
-            <div class="alert-item">
-              <div class="badge failed">${escapeHtml(alert.agentName)}</div>
-              <div style="margin-top:8px">${escapeHtml(alert.text || alert.source || "alert")}</div>
-            </div>`
-        )
-        .join("")
-    : `<div class="alert-item">${rangeLabel()}没有错误级日志。</div>`;
+    .map((agent) => {
+      const service = agent.services?.[0] || {};
+      const statusClass = service.active === "active" ? "good" : service.active === "unknown" ? "warn" : "bad";
+      return `
+        <div class="overview-status-row">
+          <span><span class="dot ${statusClass}"></span>${escapeHtml(agent.name)}</span>
+          <strong>${escapeHtml(service.active || "unknown")}</strong>
+        </div>`;
+    })
+    .join("");
+  $("overviewPage").innerHTML = `
+    <section class="overview-grid">
+      <article class="overview-panel wide">
+        <div class="panel-kicker">Operational Brief</div>
+        <h2>当前只保留总览判断，细节进入对应页面。</h2>
+        <p>${rangeLabel()}共有 ${runs.length} 条运行记录，${alerts.length} 条告警信号。需要追踪链路时进入“运行记录”，需要看模块输入输出时进入“架构视图”。</p>
+      </article>
+      <article class="overview-panel">
+        <div class="panel-kicker">Services</div>
+        <h3>服务状态</h3>
+        <div class="overview-status-list">${healthRows || `<div class="muted">没有服务状态。</div>`}</div>
+      </article>
+      <article class="overview-panel">
+        <div class="panel-kicker">Attention</div>
+        <h3>需要留意</h3>
+        ${
+          alerts.length
+            ? alerts
+                .slice(0, 3)
+                .map((alert) => `<div class="overview-alert"><strong>${escapeHtml(alert.agentName)}</strong><span>${escapeHtml(alert.text || alert.source || "alert")}</span></div>`)
+                .join("")
+            : `<div class="muted">${rangeLabel()}没有错误级日志。</div>`
+        }
+      </article>
+      <article class="overview-panel wide">
+        <div class="panel-kicker">Recent Runs</div>
+        <h3>最近运行</h3>
+        <div class="overview-run-list">
+          ${
+            recentRuns.length
+              ? recentRuns
+                  .map(
+                    (run) => `
+                      <button class="overview-run" data-run="${escapeHtml(run.trace_id)}" type="button">
+                        <span>${escapeHtml(runKind(run))}</span>
+                        <strong>${escapeHtml(runTitle(run))}</strong>
+                        <em class="${escapeHtml(run.status)}">${escapeHtml(statusText(run.status))}</em>
+                      </button>`
+                  )
+                  .join("")
+              : `<div class="muted">没有运行记录。</div>`
+          }
+        </div>
+      </article>
+    </section>`;
+
+  document.querySelectorAll(".overview-run").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.mode = "runs";
+      state.selectedRunId = button.dataset.run;
+      state.loadedRunId = null;
+      renderAll();
+    });
+  });
+}
+
+function renderAlertsPage() {
+  const alerts = visibleAlerts();
+  $("alertsPage").innerHTML = `
+    <section class="alerts-panel">
+      <div class="panel-heading page-heading">
+        <div>
+          <div class="section-title">Alerts</div>
+          <p class="hint">${rangeLabel()}的错误级日志集中在这里，运行记录页不再被告警列表挤占。</p>
+        </div>
+      </div>
+      <div class="alerts-list">
+        ${
+          alerts.length
+            ? alerts
+                .map(
+                  (alert) => `
+                    <article class="alert-item expanded">
+                      <div class="alert-top">
+                        <span class="badge failed">${escapeHtml(alert.agentName)}</span>
+                        <span class="muted">${formatTime(alert.ts)}</span>
+                      </div>
+                      <div class="alert-text">${escapeHtml(alert.text || alert.source || "alert")}</div>
+                      ${alert.source ? `<div class="alert-source">${escapeHtml(alert.source)}</div>` : ""}
+                    </article>`
+                )
+                .join("")
+            : `<div class="empty">${rangeLabel()}没有错误级日志。</div>`
+        }
+      </div>
+    </section>`;
 }
 
 function renderRuns() {
@@ -484,7 +589,8 @@ function renderRuns() {
       state.mode = "runs";
       state.selectedRunId = row.dataset.run;
       state.loadedRunId = null;
-      setModeButtons();
+      setViewButtons();
+      setViewVisibility();
       loadRunDetail(state.selectedRunId);
       renderRuns();
     });
@@ -518,11 +624,18 @@ function renderRunDetail(detail) {
           · Events ${counters.events ?? 0} · LLM ${counters.llm ?? 0} · Tool ${counters.tools ?? 0} · Gate ${counters.gate_failures ?? 0}/${counters.gates ?? 0}
         </div>
       </div>
-      <div class="segmented micro" role="group" aria-label="运行记录粒度">
-        <button class="seg mini ${state.runTraceMode === "steps" ? "active" : ""}" data-trace-mode="steps" type="button">步骤链</button>
-        <button class="seg mini ${state.runTraceMode === "events" ? "active" : ""}" data-trace-mode="events" type="button">原始事件</button>
+      <div class="detail-actions">
+        <button class="ghost-button" data-flow-toggle type="button">${state.flowCollapsed ? "展开步骤链" : "收起步骤链"}</button>
+        <div class="segmented micro" role="group" aria-label="运行记录粒度">
+          <button class="seg mini ${state.runTraceMode === "steps" ? "active" : ""}" data-trace-mode="steps" type="button">步骤链</button>
+          <button class="seg mini ${state.runTraceMode === "events" ? "active" : ""}" data-trace-mode="events" type="button">原始事件</button>
+        </div>
       </div>
     </div>`;
+  document.querySelector("[data-flow-toggle]")?.addEventListener("click", () => {
+    state.flowCollapsed = !state.flowCollapsed;
+    renderRunDetail(detail);
+  });
   document.querySelectorAll("[data-trace-mode]").forEach((button) => {
     button.addEventListener("click", () => {
       state.runTraceMode = button.dataset.traceMode || "steps";
@@ -531,6 +644,7 @@ function renderRunDetail(detail) {
       renderRunDetail(detail);
     });
   });
+  document.querySelector(".detail-panel")?.classList.toggle("flow-collapsed", state.flowCollapsed);
   renderFlow(flowEvents, false);
   renderInspector(flowEvents[state.selectedEventIndex] || flowEvents[0]);
 }
@@ -540,6 +654,7 @@ function renderArchitecture() {
   $("detailHeader").innerHTML = `
     <h2 class="detail-title">架构视图</h2>
     <div class="detail-subtitle">语义级步骤用于理解系统边界、预期输入输出和风险；运行记录保留事件级 trace。</div>`;
+  document.querySelector(".detail-panel")?.classList.remove("flow-collapsed");
   const nodes = agents.flatMap((agent) =>
     (agent.nodes || []).map((node, index) => ({
       index: index + 1,
@@ -861,27 +976,37 @@ function renderInspector(event) {
 }
 
 function renderEmptyDetail(message = "暂无可展示细节。") {
+  document.querySelector(".detail-panel")?.classList.remove("flow-collapsed");
   $("detailHeader").innerHTML = `<h2 class="detail-title">没有选中的运行</h2><div class="detail-subtitle">${escapeHtml(message)}</div>`;
   $("flowView").innerHTML = `<div class="empty">${escapeHtml(message)}</div>`;
   $("eventInspector").innerHTML = "";
 }
 
-function setModeButtons() {
-  $("showRunsBtn").classList.toggle("active", state.mode === "runs");
-  $("showArchBtn").classList.toggle("active", state.mode === "architecture");
+function setViewButtons() {
+  document.querySelectorAll("[data-view]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.view === state.mode);
+  });
+}
+
+function setViewVisibility() {
+  document.body.dataset.view = state.mode;
+  $("metrics").hidden = state.mode !== "overview";
+  $("overviewPage").hidden = state.mode !== "overview";
+  $("filterBar").hidden = !["runs", "alerts"].includes(state.mode);
+  $("workspace").hidden = !["runs", "architecture"].includes(state.mode);
+  $("alertsPage").hidden = state.mode !== "alerts";
 }
 
 $("refreshBtn").addEventListener("click", () => refresh().catch((error) => renderEmptyDetail(error.message)));
-$("showRunsBtn").addEventListener("click", () => {
-  state.mode = "runs";
-  setModeButtons();
-  renderAll();
-});
-$("showArchBtn").addEventListener("click", () => {
-  state.mode = "architecture";
-  state.selectedRunId = null;
-  setModeButtons();
-  renderArchitecture();
+document.querySelectorAll("[data-view]").forEach((button) => {
+  button.addEventListener("click", () => {
+    state.mode = button.dataset.view || "overview";
+    if (state.mode === "architecture") {
+      state.selectedRunId = null;
+      state.loadedRunId = null;
+    }
+    renderAll();
+  });
 });
 document.querySelectorAll("[data-range]").forEach((button) => {
   button.addEventListener("click", () => {

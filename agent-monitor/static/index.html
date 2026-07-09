@@ -23,18 +23,21 @@
         <aside class="rail">
           <div class="section-title">Agents</div>
           <div id="agentList" class="agent-list"></div>
-          <div class="section-title">Alerts</div>
-          <div id="alertList" class="alert-list"></div>
         </aside>
 
         <section class="stage">
+          <div class="page-nav segmented" role="tablist" aria-label="页面">
+            <button class="seg active" data-view="overview" type="button">总览</button>
+            <button class="seg" data-view="runs" type="button">运行记录</button>
+            <button class="seg" data-view="architecture" type="button">架构视图</button>
+            <button class="seg" data-view="alerts" type="button">告警</button>
+          </div>
+
           <div id="metrics" class="metrics"></div>
-          <div class="toolbar">
+          <div id="overviewPage" class="overview-page"></div>
+
+          <div id="filterBar" class="toolbar">
             <div class="toolbar-group">
-              <div class="segmented" role="tablist" aria-label="视图">
-                <button id="showRunsBtn" class="seg active" type="button">运行记录</button>
-                <button id="showArchBtn" class="seg" type="button">架构视图</button>
-              </div>
               <div class="segmented subtle" role="group" aria-label="时间范围">
                 <button class="seg compact active" data-range="24h" type="button">24h</button>
                 <button class="seg compact" data-range="7d" type="button">7d</button>
@@ -49,7 +52,7 @@
             <div id="scopeLabel" class="scope-label"></div>
           </div>
 
-          <div class="workspace">
+          <div id="workspace" class="workspace">
             <section class="runs-panel">
               <div class="panel-heading">
                 <div>
@@ -66,6 +69,8 @@
               <div id="eventInspector" class="event-inspector"></div>
             </section>
           </div>
+
+          <div id="alertsPage" class="alerts-page"></div>
         </section>
       </main>
     </div>
