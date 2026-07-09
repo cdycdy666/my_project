@@ -1,0 +1,68 @@
+# Agent Monitor
+
+一个轻量 Web Dashboard，用来观察服务器上的个人 Agent 服务：
+
+- `feishu-obsidian-capture`
+- `feishu-reading-agent`
+- `feishu-podcast-guide`
+
+它只读 systemd 状态、timer、trace JSONL 和最近日志，不写入业务项目，也不接触真实密钥。
+
+## 能看到什么
+
+- 三个服务是否 `active`。
+- 最近运行记录、耗时、LLM 次数、工具次数、证据门通过/失败情况。
+- 单次 trace 的执行链路：输入、planner、LLM、工具调用、证据门、最终回复。
+- Obsidian Capture 目前没有结构化 trace，所以第一版展示服务健康和最近日志事件。
+
+## 本地运行
+
+```bash
+cd /Users/chendingyu/my_project/agent-monitor
+python3 run.py
+```
+
+默认监听：
+
+```text
+http://127.0.0.1:8769
+```
+
+本地没有 `/opt/<project>` 时，页面会显示服务未知或无运行记录。可以通过环境变量改读取根目录：
+
+```bash
+AGENT_MONITOR_ROOT_PREFIX=/Users/chendingyu/my_project python3 run.py
+```
+
+## 服务器部署
+
+部署目录：
+
+```text
+/opt/agent-monitor
+```
+
+systemd 模板：
+
+```text
+deploy/agent-monitor.service
+```
+
+推荐只监听 `127.0.0.1`，通过 SSH 隧道访问：
+
+```bash
+ssh -L 8769:127.0.0.1:8769 root@123.57.229.149
+```
+
+然后打开：
+
+```text
+http://127.0.0.1:8769
+```
+
+## 后续增强
+
+- 给 `feishu-obsidian-capture` 增加结构化 trace。
+- 增加按 `trace_id` 的耗时瀑布图。
+- 聚合 token usage 和模型成本。
+- 增加简单告警：服务不 active、最近任务失败、证据门连续失败。

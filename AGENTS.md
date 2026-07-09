@@ -260,6 +260,41 @@ ssh root@123.57.229.149 "systemctl list-timers --all | grep feishu-podcast-guide
 ssh root@123.57.229.149 "tail -n 80 /opt/feishu-podcast-guide/logs/traces/$(date +%F).jsonl"
 ```
 
+### 6. Agent Monitor Dashboard
+
+目录：
+
+```text
+agent-monitor/
+```
+
+服务器部署：
+
+```text
+/opt/agent-monitor
+```
+
+用途：
+
+- 只读监控 `feishu-obsidian-capture`、`feishu-reading-agent`、`feishu-podcast-guide` 三个服务器 Agent。
+- 聚合 systemd service / timer 状态、trace JSONL 和最近日志。
+- 用 Web Dashboard 展示单次运行的数据流：输入、planner、LLM、工具调用、证据门和最终回复。
+
+重要边界：
+
+- 这是观测台，不是业务 Agent。
+- 不写入三个业务项目，不读取 `.env`，不展示真实密钥。
+- 默认只监听 `127.0.0.1:8769`，通过 SSH 隧道访问，不直接公网暴露。
+- `feishu-obsidian-capture` 目前没有结构化 trace，第一版只能展示服务健康和普通日志事件。
+
+常用检查：
+
+```bash
+ssh root@123.57.229.149 "systemctl status agent-monitor.service --no-pager"
+ssh root@123.57.229.149 "curl -s http://127.0.0.1:8769/api/health"
+ssh -L 8769:127.0.0.1:8769 root@123.57.229.149
+```
+
 ## 不要混淆的项目关系
 
 ```text
@@ -280,6 +315,11 @@ feishu-podcast-guide
   -> 飞书播客/论文学习陪练
   -> 读播客 RSS + arXiv
   -> 不写 personal-kb
+
+agent-monitor
+  -> 只读 feishu-obsidian-capture / feishu-reading-agent / feishu-podcast-guide
+  -> 展示 systemd 状态、trace 和日志
+  -> 不参与业务回复
 
 openclaw-infoflow-coach
   -> 如流/OpenClaw 沟通教练

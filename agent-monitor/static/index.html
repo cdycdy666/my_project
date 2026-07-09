@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Agent Monitor</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <header class="topbar">
+        <div>
+          <div class="eyebrow">Agent Operations Console</div>
+          <h1>Personal Agents Flight Recorder</h1>
+        </div>
+        <div class="top-actions">
+          <span id="lastUpdated" class="muted">loading</span>
+          <button id="refreshBtn" class="icon-button" type="button" title="刷新">↻</button>
+        </div>
+      </header>
+
+      <main class="layout">
+        <aside class="rail">
+          <div class="section-title">Services</div>
+          <div id="agentList" class="agent-list"></div>
+          <div class="section-title">Alerts</div>
+          <div id="alertList" class="alert-list"></div>
+        </aside>
+
+        <section class="stage">
+          <div id="metrics" class="metrics"></div>
+          <div class="toolbar">
+            <div class="segmented" role="tablist">
+              <button id="showRunsBtn" class="seg active" type="button">Runs</button>
+              <button id="showArchBtn" class="seg" type="button">Architecture</button>
+            </div>
+            <select id="agentFilter" class="select" aria-label="选择 Agent">
+              <option value="">All agents</option>
+            </select>
+          </div>
+
+          <div class="workspace">
+            <section class="runs-panel">
+              <div class="panel-heading">
+                <div>
+                  <div class="section-title">Recent Runs</div>
+                  <p class="hint">trace、证据门、工具调用和普通服务日志会在这里汇合。</p>
+                </div>
+              </div>
+              <div id="runList" class="run-list"></div>
+            </section>
+
+            <section class="detail-panel">
+              <div id="detailHeader" class="detail-header"></div>
+              <div id="flowView" class="flow-view"></div>
+              <div id="eventInspector" class="event-inspector"></div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script src="/static/app.js"></script>
+  </body>
+</html>
