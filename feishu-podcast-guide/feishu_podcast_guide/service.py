@@ -57,7 +57,7 @@ class FeishuPodcastGuideService:
             lark.Client.builder()
             .app_id(config.app_id)
             .app_secret(config.app_secret)
-            .log_level(lark.LogLevel.INFO)
+            .log_level(lark.LogLevel.WARNING)
             .build()
         )
 
@@ -167,7 +167,7 @@ def main() -> None:
         config.app_id,
         config.app_secret,
         event_handler=handler,
-        log_level=lark.LogLevel.INFO,
+        log_level=lark.LogLevel.WARNING,
     )
     logging.info("%s service started. %s", config.bot_display_name, service.agent.index.stats())
     ws_client.start()
