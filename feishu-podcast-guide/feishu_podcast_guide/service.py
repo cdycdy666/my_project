@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -48,6 +49,24 @@ def _preview(value: Any, limit: int = 500) -> str:
     return text
 
 
+def _is_transient_send_error(code: Any, msg: Any) -> bool:
+    try:
+        parsed_code = int(code)
+    except (TypeError, ValueError):
+        parsed_code = 0
+    text = str(msg or "").lower()
+    return parsed_code == 2200 or any(
+        marker in text
+        for marker in (
+            "service unavailable",
+            "timeout",
+            "temporarily",
+            "temporary",
+            "rate limit",
+        )
+    )
+
+
 class FeishuPodcastGuideService:
     def __init__(self, config: Config) -> None:
         require_feishu_config(config)
@@ -74,11 +93,29 @@ class FeishuPodcastGuideService:
             )
             .build()
         )
-        response = self.client.im.v1.message.create(request)
-        if not response.success():
-            logging.error("send message failed: code=%s msg=%s", response.code, response.msg)
-            return
-        logging.info("sent podcast reply to chat_id=%s", chat_id)
+        last_error = "unknown error"
+        for attempt in range(1, 4):
+            try:
+                response = self.client.im.v1.message.create(request)
+            except Exception as exc:
+                last_error = str(exc)
+                should_retry = True
+                logging.warning("send message attempt %s failed: %s", attempt, last_error)
+            else:
+                if response.success():
+                    logging.info("sent podcast reply to chat_id=%s", chat_id)
+                    return
+                last_error = f"code={response.code} msg={response.msg}"
+                should_retry = _is_transient_send_error(response.code, response.msg)
+                level = logging.WARNING if should_retry and attempt < 3 else logging.ERROR
+                logging.log(level, "send message attempt %s failed: %s", attempt, last_error)
+
+            if attempt < 3 and should_retry:
+                time.sleep(attempt)
+                continue
+            break
+
+        raise RuntimeError(f"send message failed after retries: {last_error}")
 
     def send_text_chunks(self, chat_id: str, text: str, chunk_size: int = 3000) -> None:
         content = text.strip()
@@ -134,7 +171,10 @@ class FeishuPodcastGuideService:
             self.send_text_chunks(chat_id, reply)
         except Exception as exc:
             logging.exception("podcast message processing failed")
-            self.send_text(chat_id, f"这次播客导览失败：{exc}")
+            try:
+                self.send_text(chat_id, f"这次播客导览失败：{exc}")
+            except Exception:
+                logging.exception("failed to send podcast failure notice")
 
     def handle_debug_event(self, data: Any) -> None:
         logging.info("received Feishu debug event: %s", _preview(data, limit=1000))
