@@ -6,6 +6,8 @@ const state = {
   selectedRunId: null,
   loadedRunId: null,
   mode: "runs",
+  runTraceMode: "steps",
+  inspectorTab: "summary",
   timeRange: "24h",
   statusFilter: "all",
   selectedEventIndex: 0,
@@ -142,6 +144,8 @@ function nodeIoText(event) {
 }
 
 function preferredEventIndex(events) {
+  const issue = events.findIndex((event) => event.ok === false || event.kind === "warn" || event.kind === "error" || event.status === "warning" || event.status === "failed");
+  if (issue >= 0) return issue;
   const important = [
     "llm_request",
     "llm_response",
@@ -156,6 +160,165 @@ function preferredEventIndex(events) {
   if (exact >= 0) return exact;
   const byKind = events.findIndex((event) => ["llm", "tool", "planner", "gate", "warn"].includes(event.kind));
   return byKind >= 0 ? byKind : 0;
+}
+
+const STEP_DEFS = {
+  input: { label: "用户输入", kind: "input", goal: "接收请求并建立本次运行上下文" },
+  context: { label: "读取上下文", kind: "tool", goal: "读取个人处境、会话历史或基础状态" },
+  planner: { label: "规划下一步", kind: "planner", goal: "让模型决定下一步工具或生成策略" },
+  verification: { label: "材料验证", kind: "tool", goal: "调用外部工具验证书籍、播客、论文或证据材料" },
+  evidence: { label: "回读证据", kind: "tool", goal: "读取更具体的原文、日记或详情片段" },
+  scoring: { label: "材料打分", kind: "llm", goal: "比较候选材料并选择主要建议" },
+  reply: { label: "生成回复", kind: "llm", goal: "基于已验证材料生成用户可读回复" },
+  gate: { label: "证据门", kind: "gate", goal: "校验最终回复是否引用了未经验证的内容" },
+  complete: { label: "完成", kind: "output", goal: "发出回复并记录执行结果" },
+  other: { label: "辅助事件", kind: "event", goal: "补充进度、调试和运行状态" },
+};
+
+function rawEvent(event) {
+  return event?.raw || event || {};
+}
+
+function eventName(event) {
+  return String(event?.event || rawEvent(event).event || "");
+}
+
+function eventPurpose(event) {
+  return String(rawEvent(event).purpose || event?.purpose || "");
+}
+
+function eventTool(event) {
+  return String(rawEvent(event).tool || event?.tool || "");
+}
+
+function semanticStepId(event) {
+  const name = eventName(event);
+  const purpose = eventPurpose(event).toLowerCase();
+  const tool = eventTool(event);
+  const raw = rawEvent(event);
+  const stage = String(raw.stage || raw.text || "").toLowerCase();
+
+  if (name === "reply_start" || name === "log_line") return "input";
+  if (name === "reply_complete" || name === "final_reply_sent") return "complete";
+  if (name.includes("gate") || name.includes("check")) return "gate";
+  if (purpose.includes("reply") || name === "final_reply") return "reply";
+  if (purpose.includes("scoring") || name.includes("scoring")) return "scoring";
+  if (tool === "personal.read_evidence" || name.includes("personal_evidence") || name.includes("episode_detail") || name.includes("paper_detail")) return "evidence";
+  if (
+    tool === "weread.verify_materials" ||
+    name.includes("material_verification") ||
+    name.includes("material_search") ||
+    name.includes("verified_materials") ||
+    name === "weread_request" ||
+    name === "weread_response" ||
+    /search|fetch|rss|arxiv|paper|episode/.test(tool)
+  ) {
+    return "verification";
+  }
+  if (purpose.includes("next_action") || name === "agent_next_action" || name === "agent_loop_turn") return "planner";
+  if (tool === "personal.read_context" || tool === "weread.fetch_shelf" || name.includes("context_loaded") || name.includes("history")) return "context";
+  if (name === "tool_call" && /context|history/.test(String(raw.tool || ""))) return "context";
+  if (name === "progress" && /context|history/.test(stage)) return "context";
+  if (name === "progress" && /verify|material|search|weread|rss|arxiv|paper/.test(stage)) return "verification";
+  if (name === "progress" && /reply|draft|生成/.test(stage)) return "reply";
+  return "other";
+}
+
+function eventIssueText(event) {
+  const raw = rawEvent(event);
+  const io = event?.io || {};
+  const output = io.output || {};
+  return raw.reason || output.reason || raw.error || output.error || raw.text || "";
+}
+
+function eventHasIssue(event) {
+  return event?.ok === false || event?.kind === "warn" || event?.kind === "error" || Boolean(eventIssueText(event) && /fail|error|失败|拦截|blocked|denied/i.test(eventIssueText(event)));
+}
+
+function compactEventIo(event, side) {
+  const io = event?.io || {};
+  const value = io[side];
+  if (!ioHasContent(value)) return null;
+  return {
+    event: eventName(event) || event?.label || "event",
+    label: event?.label || eventName(event) || "event",
+    kind: event?.kind || "event",
+    value,
+  };
+}
+
+function collectPromptMessages(event) {
+  const sourceEvents = event?.events || event?.rawEvents || [event];
+  const messages = [];
+  sourceEvents.forEach((item) => {
+    const raw = rawEvent(item);
+    const io = item?.io || {};
+    const requestPayload = io.input?.request_payload || raw.request_payload || {};
+    const directMessages = io.input?.messages || raw.messages || requestPayload.messages;
+    if (Array.isArray(directMessages)) {
+      messages.push(...directMessages.map((message) => ({ ...message, _event: item.label || item.event || raw.event })));
+    }
+  });
+  return messages;
+}
+
+function buildSemanticSteps(events) {
+  const order = ["input", "context", "planner", "verification", "evidence", "scoring", "reply", "gate", "complete", "other"];
+  const buckets = new Map(order.map((id) => [id, []]));
+  events.forEach((event) => {
+    const id = semanticStepId(event);
+    buckets.get(id)?.push(event);
+  });
+
+  return order
+    .map((id) => {
+      const groupedEvents = buckets.get(id) || [];
+      if (!groupedEvents.length) return null;
+      const def = STEP_DEFS[id] || STEP_DEFS.other;
+      const issueEvents = groupedEvents.filter(eventHasIssue);
+      const inputItems = groupedEvents.map((event) => compactEventIo(event, "input")).filter(Boolean);
+      const outputItems = groupedEvents.map((event) => compactEventIo(event, "output")).filter(Boolean);
+      const status = issueEvents.length ? "warning" : groupedEvents.some((event) => event.ok === true) ? "success" : "event";
+      return {
+        index: order.indexOf(id) + 1,
+        event: `semantic_${id}`,
+        kind: issueEvents.length ? "warn" : def.kind,
+        status,
+        ok: issueEvents.length ? false : undefined,
+        label: def.label,
+        summary: `${def.goal} · ${groupedEvents.length} events`,
+        ts: groupedEvents[0]?.ts,
+        events: groupedEvents,
+        rawEvents: groupedEvents.map((event) => event.raw || event),
+        io: {
+          input: {
+            goal: def.goal,
+            event_count: groupedEvents.length,
+            key_inputs: inputItems.slice(0, 18),
+          },
+          output: {
+            key_outputs: outputItems.slice(0, 18),
+            issues: issueEvents.map((event) => ({
+              event: eventName(event),
+              label: event.label,
+              reason: eventIssueText(event),
+            })),
+          },
+          meta: {
+            mode: "semantic_step",
+            raw_event_count: groupedEvents.length,
+            raw_events: groupedEvents.map((event) => ({
+              index: event.index,
+              event: eventName(event),
+              label: event.label,
+              kind: event.kind,
+              ok: event.ok,
+            })),
+          },
+        },
+      };
+    })
+    .filter(Boolean);
 }
 
 async function fetchJson(url) {
@@ -341,18 +504,35 @@ async function loadRunDetail(traceId) {
 function renderRunDetail(detail) {
   const counters = detail.counters || {};
   const events = detail.events || [];
+  const flowEvents = state.runTraceMode === "events" ? events : buildSemanticSteps(events);
   if (state.loadedRunId !== detail.trace_id) {
-    state.selectedEventIndex = preferredEventIndex(events);
+    state.selectedEventIndex = preferredEventIndex(flowEvents);
     state.loadedRunId = detail.trace_id;
   }
   $("detailHeader").innerHTML = `
-    <h2 class="detail-title">${escapeHtml(detail.agent_name)} · ${escapeHtml(detail.flow)}</h2>
-    <div class="detail-subtitle">
-      ${escapeHtml(detail.trace_id)} · ${formatTime(detail.started_at)} · ${formatDuration(detail.duration_ms)}
-      · Events ${counters.events ?? 0} · LLM ${counters.llm ?? 0} · Tool ${counters.tools ?? 0} · Gate ${counters.gate_failures ?? 0}/${counters.gates ?? 0}
+    <div class="detail-title-row">
+      <div>
+        <h2 class="detail-title">${escapeHtml(detail.agent_name)} · ${escapeHtml(detail.flow)}</h2>
+        <div class="detail-subtitle">
+          ${escapeHtml(detail.trace_id)} · ${formatTime(detail.started_at)} · ${formatDuration(detail.duration_ms)}
+          · Events ${counters.events ?? 0} · LLM ${counters.llm ?? 0} · Tool ${counters.tools ?? 0} · Gate ${counters.gate_failures ?? 0}/${counters.gates ?? 0}
+        </div>
+      </div>
+      <div class="segmented micro" role="group" aria-label="运行记录粒度">
+        <button class="seg mini ${state.runTraceMode === "steps" ? "active" : ""}" data-trace-mode="steps" type="button">步骤链</button>
+        <button class="seg mini ${state.runTraceMode === "events" ? "active" : ""}" data-trace-mode="events" type="button">原始事件</button>
+      </div>
     </div>`;
-  renderFlow(events, false);
-  renderInspector(events[state.selectedEventIndex] || events[0]);
+  document.querySelectorAll("[data-trace-mode]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.runTraceMode = button.dataset.traceMode || "steps";
+      state.loadedRunId = null;
+      state.inspectorTab = "summary";
+      renderRunDetail(detail);
+    });
+  });
+  renderFlow(flowEvents, false);
+  renderInspector(flowEvents[state.selectedEventIndex] || flowEvents[0]);
 }
 
 function renderArchitecture() {
@@ -386,6 +566,7 @@ function renderArchitecture() {
       raw: node,
     }))
   );
+  state.inspectorTab = "summary";
   renderFlow(nodes, true);
   renderInspector(nodes[0]);
 }
@@ -411,6 +592,7 @@ function renderFlow(events, isArchitecture) {
   document.querySelectorAll(".flow-node").forEach((node) => {
     node.addEventListener("click", () => {
       state.selectedEventIndex = Number(node.dataset.index || 0);
+      state.inspectorTab = "summary";
       renderFlow(events, isArchitecture);
       renderInspector(events[state.selectedEventIndex]);
     });
@@ -546,6 +728,94 @@ function ioHasContent(value) {
   return Object.keys(value).length > 0;
 }
 
+function availableInspectorTabs(event, io) {
+  const tabs = [
+    { id: "summary", label: "Summary" },
+    { id: "input", label: "Input" },
+    { id: "output", label: "Output" },
+  ];
+  if (collectPromptMessages(event).length) tabs.push({ id: "prompt", label: "Prompt" });
+  if (ioHasContent(io.meta)) tabs.push({ id: "meta", label: "Meta" });
+  tabs.push({ id: "raw", label: "Raw" });
+  return tabs;
+}
+
+function renderEventList(events) {
+  if (!events?.length) return "";
+  return `
+    <div class="event-list">
+      ${events
+        .map(
+          (event) => `
+            <div class="event-list-row">
+              <span>#${escapeHtml(event.index || "-")}</span>
+              <span>${escapeHtml(event.kind || "event")}</span>
+              <strong>${escapeHtml(event.label || event.event || "event")}</strong>
+              ${event.ok === false ? `<em>failed</em>` : ""}
+            </div>`
+        )
+        .join("")}
+    </div>`;
+}
+
+function renderInspectorSummary(event, io, status) {
+  const childEvents = event.events || [];
+  const issueItems = childEvents.length ? childEvents.filter(eventHasIssue) : eventHasIssue(event) ? [event] : [];
+  return `
+    <div class="summary-grid">
+      <section class="summary-card">
+        <div class="io-title">节点状态</div>
+        <div class="summary-line"><span>status</span><strong>${escapeHtml(status)}</strong></div>
+        <div class="summary-line"><span>kind</span><strong>${escapeHtml(event.kind || "event")}</strong></div>
+        <div class="summary-line"><span>events</span><strong>${escapeHtml(childEvents.length || 1)}</strong></div>
+      </section>
+      <section class="summary-card">
+        <div class="io-title">关键判断</div>
+        ${
+          issueItems.length
+            ? issueItems
+                .map((item) => `<div class="issue-line">${escapeHtml(item.label || eventName(item))}: ${escapeHtml(eventIssueText(item) || "needs attention")}</div>`)
+                .join("")
+            : `<div class="io-preview-empty">没有失败或拦截信号。</div>`
+        }
+      </section>
+    </div>
+    <div class="io-preview-grid">
+      ${renderIoPreview("输入预览", io.input)}
+      ${renderIoPreview("输出预览", io.output)}
+    </div>
+    ${
+      childEvents.length
+        ? `<section class="io-card"><div class="io-title">包含的原始事件</div>${renderEventList(childEvents)}</section>`
+        : ""
+    }`;
+}
+
+function renderPromptTab(event) {
+  const messages = collectPromptMessages(event);
+  if (!messages.length) {
+    return `<div class="empty">这个节点没有记录 LLM messages。</div>`;
+  }
+  return renderMessages(messages);
+}
+
+function renderInspectorTab(event, io, status, activeTab) {
+  if (activeTab === "summary") return renderInspectorSummary(event, io, status);
+  if (activeTab === "input") {
+    return `<section class="io-card input-card single-card"><div class="io-title">输入</div>${renderValue(ioHasContent(io.input) ? io.input : "这个节点没有记录明确输入。")}</section>`;
+  }
+  if (activeTab === "output") {
+    return `<section class="io-card output-card single-card"><div class="io-title">输出</div>${renderValue(ioHasContent(io.output) ? io.output : "这个节点没有记录明确输出。")}</section>`;
+  }
+  if (activeTab === "prompt") {
+    return `<section class="io-card single-card"><div class="io-title">Prompt Messages</div>${renderPromptTab(event)}</section>`;
+  }
+  if (activeTab === "meta") {
+    return `<section class="io-card meta-card single-card"><div class="io-title">元信息</div>${renderValue(io.meta)}</section>`;
+  }
+  return `<section class="io-card single-card"><div class="io-title">Raw JSON</div>${renderValue(event.rawEvents || event.raw || event)}</section>`;
+}
+
 function renderInspector(event) {
   if (!event) {
     $("eventInspector").innerHTML = `<div class="empty">选择一段链路查看原始数据。</div>`;
@@ -557,6 +827,8 @@ function renderInspector(event) {
     meta: {},
   };
   const status = event.ok === false ? "failed" : event.ok === true ? "success" : event.kind || "event";
+  const tabs = availableInspectorTabs(event, io);
+  const activeTab = tabs.some((tab) => tab.id === state.inspectorTab) ? state.inspectorTab : "summary";
   $("eventInspector").innerHTML = `
     <div class="inspector-head">
       <div>
@@ -571,29 +843,21 @@ function renderInspector(event) {
       <span>${formatTime(event.ts)}</span>
       ${event.summary ? `<span>${escapeHtml(event.summary)}</span>` : ""}
     </div>
-    <div class="io-preview-grid">
-      ${renderIoPreview("输入预览", io.input)}
-      ${renderIoPreview("输出预览", io.output)}
+    <div class="inspector-tabs" role="tablist" aria-label="节点详情">
+      ${tabs
+        .map(
+          (tab) => `<button class="inspector-tab ${tab.id === activeTab ? "active" : ""}" data-inspector-tab="${tab.id}" type="button">${escapeHtml(tab.label)}</button>`
+        )
+        .join("")}
     </div>
-    <div class="io-grid">
-      <section class="io-card input-card">
-        <div class="io-title">输入</div>
-        ${renderValue(ioHasContent(io.input) ? io.input : "这个节点没有记录明确输入。")}
-      </section>
-      <section class="io-card output-card">
-        <div class="io-title">输出</div>
-        ${renderValue(ioHasContent(io.output) ? io.output : "这个节点没有记录明确输出。")}
-      </section>
-    </div>
-    ${
-      ioHasContent(io.meta)
-        ? `<section class="io-card meta-card"><div class="io-title">元信息</div>${renderValue(io.meta)}</section>`
-        : ""
-    }
-    <details class="raw-details">
-      <summary>原始事件 JSON</summary>
-      ${renderValue(event.raw || event)}
-    </details>`;
+    <div class="inspector-body">${renderInspectorTab(event, io, status, activeTab)}</div>`;
+
+  document.querySelectorAll("[data-inspector-tab]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.inspectorTab = button.dataset.inspectorTab || "summary";
+      renderInspector(event);
+    });
+  });
 }
 
 function renderEmptyDetail(message = "暂无可展示细节。") {

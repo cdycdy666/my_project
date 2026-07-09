@@ -12,8 +12,9 @@
 
 - 三个服务是否 `active`。
 - 最近运行记录、耗时、LLM 次数、工具次数、证据门通过/失败情况。
-- 单次 trace 的执行链路：输入、planner、LLM、工具调用、证据门、最终回复。
+- 单次 trace 的执行链路：默认合并成语义步骤链，也可以切换到原始事件级 trace。
 - 点击任一链路节点后，可以查看该模块的结构化输入、输出、元信息和原始事件 JSON，类似 n8n 的节点执行详情。Inspector 会按字段拆开 `messages`、`request_payload`、`response_text`、`content`、`episodes`、`papers` 等内容，方便直接看每个模块吃进去什么、吐出来什么。新 trace 会尽量保留完整 LLM messages、模型回复、工具参数和工具结果。
+- Inspector 支持 `Summary / Input / Output / Prompt / Meta / Raw` 标签页；LLM 节点会单独展示 prompt messages。
 - Obsidian Capture 目前没有结构化 trace，所以第一版展示服务健康和最近日志事件。
 
 ## 本地运行
