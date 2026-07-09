@@ -312,6 +312,7 @@ def collect_run_detail(trace_id: str) -> dict[str, Any] | None:
                         "ts": _iso(_event_time(event)) or event.get("ts"),
                         "ok": event.get("ok"),
                         "summary": _event_summary(event),
+                        "io": _event_io(event),
                         "raw": _safe_event(event),
                     }
                 )
@@ -319,6 +320,153 @@ def collect_run_detail(trace_id: str) -> dict[str, Any] | None:
             detail["events"] = events
             return detail
     return None
+
+
+def _compact(value: Any, string_limit: int = 1600, list_limit: int = 12, depth: int = 0) -> Any:
+    if depth > 4:
+        return "[nested]"
+    if isinstance(value, str):
+        redacted = _redact(value)
+        if len(redacted) > string_limit:
+            return redacted[:string_limit] + f"... [truncated {len(redacted) - string_limit} chars]"
+        return redacted
+    if isinstance(value, dict):
+        return {str(key): _compact(item, string_limit, list_limit, depth + 1) for key, item in value.items() if not str(key).startswith("_")}
+    if isinstance(value, list):
+        compacted = [_compact(item, string_limit, list_limit, depth + 1) for item in value[:list_limit]]
+        if len(value) > list_limit:
+            compacted.append(f"... [{len(value) - list_limit} more]")
+        return compacted
+    return value
+
+
+def _pick(event: dict[str, Any], keys: tuple[str, ...]) -> dict[str, Any]:
+    return {key: _compact(event[key]) for key in keys if key in event and event[key] not in (None, "", [], {})}
+
+
+def _event_io(event: dict[str, Any]) -> dict[str, Any]:
+    name = str(event.get("event") or "")
+    meta = _pick(event, ("ts", "trace_id", "chat_id", "elapsed_ms"))
+    if name == "reply_start":
+        return {
+            "input": _pick(event, ("user_message", "message", "chat_id")),
+            "output": _pick(event, ("trace_id",)),
+            "meta": meta,
+        }
+    if name == "agent_loop_turn":
+        return {
+            "input": _pick(event, ("turn",)),
+            "output": _pick(
+                event,
+                (
+                    "evidence_count",
+                    "paper_evidence_count",
+                    "search_rounds",
+                    "paper_search_rounds",
+                    "paper_fetch_rounds",
+                    "detail_rounds",
+                    "draft_rounds",
+                    "material_verification_rounds",
+                    "supplemental_rounds",
+                    "has_verified_materials",
+                    "has_personal_evidence",
+                    "has_material_scoring",
+                    "has_reply",
+                ),
+            ),
+            "meta": meta,
+        }
+    if name == "agent_next_action":
+        action_args = {
+            key: value
+            for key, value in event.items()
+            if key
+            not in {
+                "event",
+                "trace_id",
+                "ts",
+                "chat_id",
+                "raw_text",
+                "reason",
+                "action",
+                "_source_file",
+                "_line_no",
+            }
+        }
+        return {
+            "input": _pick(event, ("raw_text",)),
+            "output": {
+                "action": _compact(event.get("action")),
+                "reason": _compact(event.get("reason")),
+                "args": _compact(action_args),
+            },
+            "meta": meta,
+        }
+    if name == "llm_request":
+        return {
+            "input": _pick(event, ("purpose", "model", "base_url", "temperature", "prompt_chars", "metadata")),
+            "output": {"request": "sent"},
+            "meta": meta,
+        }
+    if name == "llm_response":
+        return {
+            "input": _pick(event, ("purpose", "model")),
+            "output": _pick(event, ("elapsed_ms", "response_keys", "usage", "raw_text", "text")),
+            "meta": meta,
+        }
+    if name == "weread_request":
+        return {
+            "input": _pick(event, ("api_name", "endpoint", "params")),
+            "output": {"request": "sent"},
+            "meta": meta,
+        }
+    if name == "weread_response":
+        return {
+            "input": _pick(event, ("api_name", "endpoint", "params")),
+            "output": _pick(event, ("summary", "elapsed_ms", "ok", "error")),
+            "meta": meta,
+        }
+    if name == "tool_result":
+        return {
+            "input": _pick(event, ("tool",)),
+            "output": _pick(event, ("ok", "error", "metadata", "episode_count", "paper_count", "result")),
+            "meta": meta,
+        }
+    if "gate" in name or "check" in name:
+        return {
+            "input": _pick(event, ("reply_chars", "queries", "extra_queries", "final_reply_chars", "verified_materials_context_chars")),
+            "output": _pick(event, ("ok", "reason", "extra_queries", "raw_text")),
+            "meta": meta,
+        }
+    if name == "final_reply":
+        return {
+            "input": _pick(event, ("chars",)),
+            "output": _pick(event, ("text",)),
+            "meta": meta,
+        }
+    if name == "reply_complete":
+        return {
+            "input": _pick(event, ("flow",)),
+            "output": _pick(event, ("elapsed_ms", "chars")),
+            "meta": meta,
+        }
+    if name in {"progress", "personal_context_loaded", "weread_context_loaded", "verified_materials_loaded"}:
+        return {
+            "input": _pick(event, ("stage", "text")),
+            "output": _pick(event, ("chars", "count", "summary")),
+            "meta": meta,
+        }
+    if name in {"log_line", "log_alert"}:
+        return {
+            "input": _pick(event, ("source",)),
+            "output": _pick(event, ("text",)),
+            "meta": meta,
+        }
+    return {
+        "input": _pick(event, ("event", "message", "user_message", "source", "tool", "purpose", "action")),
+        "output": _pick(event, ("ok", "reason", "summary", "text", "metadata")),
+        "meta": meta,
+    }
 
 
 def _safe_event(event: dict[str, Any]) -> dict[str, Any]:
@@ -329,7 +477,7 @@ def _safe_event(event: dict[str, Any]) -> dict[str, Any]:
         if isinstance(value, str):
             safe[key] = _redact(value[:5000])
         else:
-            safe[key] = value
+            safe[key] = _compact(value, string_limit=5000, list_limit=40)
     return safe
 
 

@@ -77,6 +77,43 @@ function pickDefaultRun(runs) {
   return runs.find((run) => run.kind === "trace") || runs[0] || null;
 }
 
+function runKind(run) {
+  if (run.kind === "log") return "服务事件";
+  if (run.agent_id === "reading") return "阅读推荐";
+  if (run.agent_id === "podcast" && /论文|arxiv|paper/i.test(`${run.title} ${run.actions?.join(" ")}`)) return "论文解析";
+  if (run.agent_id === "podcast") return "播客陪练";
+  return "Agent 执行";
+}
+
+function runTitle(run) {
+  const title = run.title || run.trace_id;
+  if (run.kind === "log") {
+    return title.replace(/^logs\//, "").replace(/\s+chat_id=.*/, "").slice(0, 90);
+  }
+  return title.slice(0, 110);
+}
+
+function runPath(run) {
+  if (run.kind === "log") return ["日志"];
+  const actions = (run.actions || []).join(" ").toLowerCase();
+  const path = ["输入"];
+  if (/context|personal/.test(actions)) path.push("读处境");
+  if (/planner|agent_next_action/.test(actions)) path.push("规划");
+  if (/weread|tool|search|fetch|verify|rss|arxiv/.test(actions)) path.push("工具");
+  if (/llm|reply|scoring|score|draft/.test(actions)) path.push("LLM");
+  if ((run.counters?.gates || 0) > 0) path.push("证据门");
+  path.push("回复");
+  return [...new Set(path)];
+}
+
+function runNote(run) {
+  const counters = run.counters || {};
+  if (run.status === "warning" && counters.gate_failures > 0) return "证据门曾失败，后续已重写或完成。";
+  if (run.status === "failed") return "执行失败，需要查看节点输出或日志。";
+  if (run.kind === "log") return "普通服务日志，未包含结构化模块输入输出。";
+  return run.final_preview ? run.final_preview.replace(/\s+/g, " ").slice(0, 120) : "点击查看每个模块的输入与输出。";
+}
+
 async function fetchJson(url) {
   const response = await fetch(url, { cache: "no-store" });
   if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
@@ -208,9 +245,18 @@ function renderRuns() {
           return `
             <article class="run-row ${active}" data-run="${escapeHtml(run.trace_id)}">
               <div class="run-top">
-                <div class="run-title">${escapeHtml(run.title || run.trace_id)}</div>
+                <div>
+                  <div class="run-kind">${escapeHtml(runKind(run))}</div>
+                  <div class="run-title">${escapeHtml(runTitle(run))}</div>
+                </div>
                 <span class="badge ${escapeHtml(run.status)}">${escapeHtml(statusText(run.status))}</span>
               </div>
+              <div class="run-path">
+                ${runPath(run)
+                  .map((step) => `<span class="path-step">${escapeHtml(step)}</span>`)
+                  .join("")}
+              </div>
+              <div class="run-note">${escapeHtml(runNote(run))}</div>
               <div class="run-meta">
                 <span>${escapeHtml(run.agent_name)}</span>
                 <span>${escapeHtml(run.kind)}</span>
@@ -302,12 +348,66 @@ function renderFlow(events, isArchitecture) {
   });
 }
 
+function renderValue(value) {
+  if (value === null || value === undefined || value === "") {
+    return `<div class="io-empty">empty</div>`;
+  }
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return `<pre>${escapeHtml(value)}</pre>`;
+  }
+  return `<pre>${escapeHtml(JSON.stringify(value, null, 2))}</pre>`;
+}
+
+function ioHasContent(value) {
+  if (!value) return false;
+  if (typeof value !== "object") return true;
+  return Object.keys(value).length > 0;
+}
+
 function renderInspector(event) {
   if (!event) {
     $("eventInspector").innerHTML = `<div class="empty">选择一段链路查看原始数据。</div>`;
     return;
   }
-  $("eventInspector").innerHTML = `<pre>${escapeHtml(JSON.stringify(event.raw || event, null, 2))}</pre>`;
+  const io = event.io || {
+    input: event.raw || event,
+    output: {},
+    meta: {},
+  };
+  const status = event.ok === false ? "failed" : event.ok === true ? "success" : event.kind || "event";
+  $("eventInspector").innerHTML = `
+    <div class="inspector-head">
+      <div>
+        <div class="section-title">Node Inspector</div>
+        <h3>${escapeHtml(event.label || event.event || "event")}</h3>
+      </div>
+      <span class="badge ${escapeHtml(status)}">${escapeHtml(status)}</span>
+    </div>
+    <div class="inspector-meta">
+      <span>#${escapeHtml(event.index || "-")}</span>
+      <span>${escapeHtml(event.kind || "event")}</span>
+      <span>${formatTime(event.ts)}</span>
+      ${event.summary ? `<span>${escapeHtml(event.summary)}</span>` : ""}
+    </div>
+    <div class="io-grid">
+      <section class="io-card input-card">
+        <div class="io-title">输入</div>
+        ${renderValue(ioHasContent(io.input) ? io.input : "这个节点没有记录明确输入。")}
+      </section>
+      <section class="io-card output-card">
+        <div class="io-title">输出</div>
+        ${renderValue(ioHasContent(io.output) ? io.output : "这个节点没有记录明确输出。")}
+      </section>
+    </div>
+    ${
+      ioHasContent(io.meta)
+        ? `<section class="io-card meta-card"><div class="io-title">元信息</div>${renderValue(io.meta)}</section>`
+        : ""
+    }
+    <details class="raw-details">
+      <summary>原始事件 JSON</summary>
+      ${renderValue(event.raw || event)}
+    </details>`;
 }
 
 function renderEmptyDetail(message = "暂无可展示细节。") {
