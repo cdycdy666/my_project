@@ -128,5 +128,7 @@ def format_records_markdown(records: list[HistoryMessage], date_text: str) -> st
     for record in records:
         lines.append("")
         lines.append(f"## {record.created_at.strftime('%H:%M')}")
+        if record.message_id:
+            lines.append(f"<!-- record_id: feishu-{record.message_id} -->")
         lines.append(record.text)
     return "\n".join(lines).rstrip() + "\n"

@@ -177,6 +177,7 @@ const STEP_DEFS = {
   input: { label: "用户输入", kind: "input", goal: "接收请求并建立本次运行上下文" },
   context: { label: "读取上下文", kind: "tool", goal: "读取个人处境、会话历史或基础状态" },
   planner: { label: "规划下一步", kind: "planner", goal: "让模型决定下一步工具或生成策略" },
+  memory: { label: "混合记忆检索", kind: "tool", goal: "并行执行 BM25 与向量检索，并融合候选记忆" },
   verification: { label: "材料验证", kind: "tool", goal: "调用外部工具验证书籍、播客、论文或证据材料" },
   evidence: { label: "回读证据", kind: "tool", goal: "读取更具体的原文、日记或详情片段" },
   scoring: { label: "材料打分", kind: "llm", goal: "比较候选材料并选择主要建议" },
@@ -211,6 +212,10 @@ function semanticStepId(event) {
 
   if (name === "reply_start" || name === "log_line") return "input";
   if (name === "reply_complete" || name === "final_reply_sent") return "complete";
+  if (name === "memory_page_id_retrieval") return "evidence";
+  if (name.startsWith("memory_bm25_search") || name.startsWith("memory_vector_search") || name === "memory_hybrid_fusion") return "memory";
+  if (name === "memory_query_plan" || name === "memory_research_reflection" || purpose.startsWith("memory_")) return "planner";
+  if (name === "memory_research_start" || name === "memory_research_round" || name === "memory_research_complete") return "context";
   if (name.includes("gate") || name.includes("check")) return "gate";
   if (purpose.includes("reply") || name === "final_reply") return "reply";
   if (purpose.includes("scoring") || name.includes("scoring")) return "scoring";
@@ -274,7 +279,7 @@ function collectPromptMessages(event) {
 }
 
 function buildSemanticSteps(events) {
-  const order = ["input", "context", "planner", "verification", "evidence", "scoring", "reply", "gate", "complete", "other"];
+  const order = ["input", "context", "planner", "memory", "verification", "evidence", "scoring", "reply", "gate", "complete", "other"];
   const buckets = new Map(order.map((id) => [id, []]));
   events.forEach((event) => {
     const id = semanticStepId(event);
@@ -694,9 +699,40 @@ function architectureEvents(agents) {
   );
 }
 
-function architectureMetric(value, label) {
-  const count = Array.isArray(value) ? value.length : value ? 1 : 0;
-  return `<span><strong>${count}</strong>${escapeHtml(label)}</span>`;
+function compactList(items, limit = 2) {
+  return (Array.isArray(items) ? items : [])
+    .filter(Boolean)
+    .slice(0, limit);
+}
+
+function uniqueList(items, limit = 6) {
+  return [...new Set((items || []).filter(Boolean))].slice(0, limit);
+}
+
+function renderInlineList(items, emptyText = "未声明") {
+  const list = Array.isArray(items) ? items.filter(Boolean) : [];
+  if (!list.length) return `<span class="arch-empty">${escapeHtml(emptyText)}</span>`;
+  return list.map((item) => `<span>${escapeHtml(item)}</span>`).join("");
+}
+
+function renderContractBlock(label, items, emptyText) {
+  return `
+    <div class="arch-contract-block">
+      <div class="arch-contract-label">${escapeHtml(label)}</div>
+      <div class="arch-contract-values">${renderInlineList(items, emptyText)}</div>
+    </div>`;
+}
+
+function architectureBoundary(agent) {
+  const nodes = agent.nodes || [];
+  const first = nodes[0] || {};
+  const last = nodes[nodes.length - 1] || {};
+  return {
+    entry: compactList(first.input, 3),
+    dependencies: uniqueList(nodes.flatMap((node) => node.depends || []), 5),
+    output: compactList(last.output, 3),
+    risks: uniqueList(nodes.flatMap((node) => node.risk || []), 4),
+  };
 }
 
 function renderArchitectureBlueprint(agents, events) {
@@ -709,6 +745,7 @@ function renderArchitectureBlueprint(agents, events) {
           .map((agent) => {
             const agentNodes = agent.nodes || [];
             const laneStart = cursor;
+            const boundary = architectureBoundary(agent);
             cursor += agentNodes.length;
             return `
               <section class="architecture-lane" style="--accent:${escapeHtml(agent.accent || "var(--cyan)")}">
@@ -719,22 +756,46 @@ function renderArchitectureBlueprint(agents, events) {
                   </div>
                   <p>${escapeHtml(agent.role)}</p>
                 </div>
-                <div class="architecture-module-grid">
+                <div class="architecture-boundary">
+                  <section>
+                    <div>入口</div>
+                    ${renderInlineList(boundary.entry)}
+                  </section>
+                  <section>
+                    <div>外部依赖</div>
+                    ${renderInlineList(boundary.dependencies)}
+                  </section>
+                  <section>
+                    <div>最终输出</div>
+                    ${renderInlineList(boundary.output)}
+                  </section>
+                  <section>
+                    <div>主要风险</div>
+                    ${renderInlineList(boundary.risks)}
+                  </section>
+                </div>
+                <div class="architecture-pipeline">
                   ${agentNodes
                     .map((node, offset) => {
                       const eventIndex = laneStart + offset;
                       const selected = eventIndex === state.selectedEventIndex ? "selected" : "";
                       return `
                         <button class="architecture-module ${escapeHtml(node.kind || "event")} ${selected}" data-arch-index="${eventIndex}" type="button">
-                          <div class="module-kind">${escapeHtml(node.kind || "module")}</div>
+                          <div class="module-topline">
+                            <span class="module-index">${String(offset + 1).padStart(2, "0")}</span>
+                            <span class="module-kind">${escapeHtml(node.kind || "module")}</span>
+                          </div>
                           <div class="module-title">${escapeHtml(node.label || node.id || "module")}</div>
                           <div class="module-goal">${escapeHtml(node.goal || "")}</div>
-                          <div class="module-metrics">
-                            ${architectureMetric(node.input, "输入")}
-                            ${architectureMetric(node.output, "输出")}
-                            ${architectureMetric(node.depends, "依赖")}
-                            ${architectureMetric(node.risk, "风险")}
+                          <div class="module-contract">
+                            ${renderContractBlock("输入", compactList(node.input, 2), "无明确输入")}
+                            ${renderContractBlock("输出", compactList(node.output, 2), "无明确输出")}
                           </div>
+                          ${
+                            node.depends?.length
+                              ? `<div class="module-depends">依赖：${escapeHtml(compactList(node.depends, 2).join(" / "))}</div>`
+                              : ""
+                          }
                         </button>`;
                     })
                     .join("")}

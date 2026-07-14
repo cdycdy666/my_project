@@ -112,6 +112,17 @@ def _event_label(event: dict[str, Any]) -> str:
         return f"Tool: {event.get('tool') or 'result'}"
     if name in {"weread_request", "weread_response"}:
         return f"WeRead: {event.get('endpoint') or name}"
+    memory_labels = {
+        "memory_query_plan": "Memory: 规划查询",
+        "memory_bm25_search": "Memory: BM25 检索",
+        "memory_vector_search": "Memory: Embedding 检索",
+        "memory_hybrid_fusion": "Memory: 融合排序",
+        "memory_page_id_retrieval": "Memory: Page-ID 回读",
+        "memory_research_reflection": "Memory: 证据反思",
+        "memory_research_complete": "Memory: 研究完成",
+    }
+    if name in memory_labels:
+        return memory_labels[name]
     return name
 
 
@@ -125,9 +136,9 @@ def _event_kind(event: dict[str, Any]) -> str:
         return "progress"
     if name == "agent_next_action":
         return "planner"
-    if name.startswith("llm_") or "reply" in name and name != "reply_complete":
+    if name.startswith("llm_") or name.startswith("memory_llm_") or "reply" in name and name != "reply_complete":
         return "llm"
-    if name in {"tool_result", "weread_request", "weread_response", "verified_materials_loaded"}:
+    if name in {"tool_result", "weread_request", "weread_response", "verified_materials_loaded"} or name.startswith("memory_"):
         return "tool"
     if "gate" in name or "check" in name:
         return "gate"
@@ -186,8 +197,25 @@ def _summarize_trace(agent: AgentConfig, trace_id: str, events: list[dict[str, A
     final = next((event for event in reversed(ordered) if event.get("event") == "final_reply"), None)
     counters = {
         "events": len(ordered),
-        "llm": sum(1 for event in ordered if str(event.get("event") or "").startswith("llm_")),
-        "tools": sum(1 for event in ordered if event.get("event") in {"tool_result", "weread_request", "weread_response"}),
+        "llm": sum(
+            1
+            for event in ordered
+            if str(event.get("event") or "").startswith(("llm_", "memory_llm_"))
+        ),
+        "tools": sum(
+            1
+            for event in ordered
+            if event.get("event")
+            in {
+                "tool_result",
+                "weread_request",
+                "weread_response",
+                "memory_bm25_search",
+                "memory_vector_search",
+                "memory_hybrid_fusion",
+                "memory_page_id_retrieval",
+            }
+        ),
         "gates": sum(1 for event in ordered if "gate" in str(event.get("event") or "") or "check" in str(event.get("event") or "")),
         "gate_failures": sum(
             1
@@ -209,7 +237,21 @@ def _summarize_trace(agent: AgentConfig, trace_id: str, events: list[dict[str, A
         "duration_ms": _duration_ms(ordered),
         "counters": counters,
         "final_preview": str((final or {}).get("text") or "")[:260],
-        "actions": [_event_label(event) for event in ordered if event.get("event") in {"agent_next_action", "tool_result", "llm_request"}][:14],
+        "actions": [
+            _event_label(event)
+            for event in ordered
+            if event.get("event")
+            in {
+                "agent_next_action",
+                "tool_result",
+                "llm_request",
+                "memory_query_plan",
+                "memory_bm25_search",
+                "memory_vector_search",
+                "memory_hybrid_fusion",
+                "memory_page_id_retrieval",
+            }
+        ][:14],
         "events": ordered,
     }
 
@@ -351,6 +393,54 @@ def _event_io(event: dict[str, Any]) -> dict[str, Any]:
         return {
             "input": _pick(event, ("user_message", "message", "chat_id")),
             "output": _pick(event, ("trace_id",)),
+            "meta": meta,
+        }
+    if name == "memory_research_start":
+        return {
+            "input": _pick(event, ("query", "retrieval_methods")),
+            "output": _pick(event, ("document_count",)),
+            "meta": meta,
+        }
+    if name == "memory_query_plan":
+        return {
+            "input": _pick(event, ("query",)),
+            "output": _pick(event, ("queries", "reason")),
+            "meta": meta,
+        }
+    if name.startswith("memory_bm25_search") or name.startswith("memory_vector_search"):
+        return {
+            "input": _pick(event, ("round", "query", "model")),
+            "output": _pick(event, ("results", "error")),
+            "meta": meta,
+        }
+    if name == "memory_hybrid_fusion":
+        return {
+            "input": _pick(event, ("round",)),
+            "output": _pick(event, ("hits",)),
+            "meta": meta,
+        }
+    if name == "memory_page_id_retrieval":
+        return {
+            "input": _pick(event, ("round", "document_ids")),
+            "output": _pick(event, ("evidence",)),
+            "meta": meta,
+        }
+    if name == "memory_research_reflection":
+        return {
+            "input": _pick(event, ("round",)),
+            "output": _pick(event, ("sufficient", "missing_information", "refined_queries", "reason")),
+            "meta": meta,
+        }
+    if name == "memory_research_complete":
+        return {
+            "input": _pick(event, ("planned_queries", "rounds")),
+            "output": _pick(event, ("sufficient", "hit_count", "evidence_count", "warnings", "summary_context", "evidence_context")),
+            "meta": meta,
+        }
+    if name in {"memory_llm_request", "memory_llm_response"}:
+        return {
+            "input": _pick(event, ("purpose", "request_payload")),
+            "output": _pick(event, ("response_text", "usage")),
             "meta": meta,
         }
     if name == "agent_loop_turn":

@@ -71,6 +71,25 @@ READING_COACH_PROMPT = """你是用户的处境驱动读书智能体。
 """
 
 
+GENERAL_REPLY_PROMPT = """你是用户的处境驱动读书搭子（飞书机器人）。
+
+当前这条消息不是明确的读书请求（不是「推荐 / 换一本 / 这本适合吗 / 读完了」这类），也不是「帮助」或「书架」。它可能是闲聊、打招呼、随口一句，或者只是聊到当下的状态。
+
+你的任务：先自然地接住用户这句话，再顺势把他引导到你能帮上忙的地方。
+
+要求：
+- 中文，口语、简短、真诚，别端着，别鸡汤。
+- 先自然回应用户这句话（闲聊就轻松接一句；带情绪就先共情一句）。
+- 然后用一两句把他引导到你的核心用法，例如：
+  · 发「推荐阅读」或说说最近在纠结/琢磨什么，我结合你的近况推荐一段 10-20 分钟的阅读。
+  · 读完了可以发「读完了《书名》：我的理解是…」，我陪你复盘、追问。
+- 不要编造书名、作者、章节，也不要在这一步给具体阅读推荐；这一步只做回应和引导。
+- 不要假装你已经知道用户读过什么、书架里有什么或他的具体处境。
+- 不要用 Markdown 加粗、标题、表格或代码块。
+- 总长度控制在 150 字以内。
+"""
+
+
 MATERIAL_QUERY_PROMPT = """你是读书推荐的材料检索规划器。
 任务：根据用户消息和个人处境，列出需要去微信读书验证的候选书名、概念名或关键词。
 
@@ -394,6 +413,44 @@ def generate_reading_reply(
     reply = _format_for_feishu_text(_reinforce_evidence_boundaries(text))
     if trace:
         trace.event("final_reply", chars=len(reply), text=reply)
+    return reply
+
+
+def generate_general_reply(
+    api_key: str,
+    base_url: str,
+    model: str,
+    user_message: str,
+    trace: InteractionTrace | None = None,
+) -> str:
+    if not api_key:
+        raise RuntimeError("LLM_API_KEY is not configured")
+
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": GENERAL_REPLY_PROMPT},
+            {"role": "user", "content": f"用户消息：\n{user_message.strip()}"},
+        ],
+        "temperature": 0.6,
+    }
+    data = _post_chat_completion(
+        api_key,
+        base_url,
+        payload,
+        timeout=45,
+        retries=1,
+        trace=trace,
+        purpose="general_reply",
+        metadata={"user_message": user_message.strip()},
+    )
+
+    text = _extract_response_text(data).strip()
+    if not text:
+        raise RuntimeError("LLM API returned an empty general reply")
+    reply = _format_for_feishu_text(text)
+    if trace:
+        trace.event("final_reply", chars=len(reply), text=reply, flow="general")
     return reply
 
 

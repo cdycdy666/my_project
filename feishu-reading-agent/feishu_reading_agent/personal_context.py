@@ -114,10 +114,12 @@ def _index_text(index: dict[str, Any]) -> str:
         "next_steps",
         "lessons",
         "ai_notes",
+        "events",
+        "source_record_ids",
     ):
         value = index.get(key)
-        if isinstance(value, list):
-            parts.extend(str(item) for item in value)
+        if isinstance(value, (list, dict)):
+            parts.append(json.dumps(value, ensure_ascii=False))
         elif value:
             parts.append(str(value))
     return "\n".join(parts).lower()
@@ -214,6 +216,44 @@ def _source_paths_from_indexes(indexes: list[dict[str, Any]]) -> list[str]:
     return paths
 
 
+def _event_score(event: dict[str, Any], query: str) -> int:
+    terms = _query_terms(query)
+    if not terms:
+        return 0
+    text = json.dumps(event, ensure_ascii=False).lower()
+    return sum(3 if term in QUERY_KEYWORD_SET else 1 for term in terms if term in text)
+
+
+def _source_record_ids_from_indexes(indexes: list[dict[str, Any]], query: str = "") -> list[str]:
+    record_ids: list[str] = []
+    for index in indexes:
+        values: Any = index.get("source_record_ids", [])
+        events = index.get("events", [])
+        if query.strip() and isinstance(events, list):
+            ranked = sorted(
+                (
+                    (event, _event_score(event, query))
+                    for event in events
+                    if isinstance(event, dict)
+                ),
+                key=lambda item: item[1],
+                reverse=True,
+            )
+            relevant_events = [event for event, score in ranked if score > 0][:2]
+            if relevant_events:
+                values = [
+                    record_id
+                    for event in relevant_events
+                    for record_id in event.get("source_record_ids", [])
+                ]
+        if not isinstance(values, list):
+            continue
+        for value in values:
+            if isinstance(value, str) and value and value not in record_ids:
+                record_ids.append(value)
+    return record_ids
+
+
 def _recent_daily_notes(
     vault_dir: Path,
     limit: int = 2,
@@ -291,6 +331,27 @@ def _daily_evidence_excerpt(path: Path, max_chars: int = 2200) -> str:
     return "\n\n".join(chunks)
 
 
+def _record_evidence_excerpt(path: Path, record_ids: list[str], max_chars: int = 2200) -> str:
+    text = path.read_text(encoding="utf-8", errors="replace").strip()
+    if not text or not record_ids:
+        return ""
+
+    wanted = set(record_ids)
+    blocks = re.split(r"(?=^##\s+)", text, flags=re.MULTILINE)
+    selected: list[str] = []
+    total_chars = 0
+    for block in blocks:
+        match = re.search(r"<!--\s*record_id:\s*([^>]+?)\s*-->", block, flags=re.IGNORECASE)
+        if not match or match.group(1).strip() not in wanted:
+            continue
+        cleaned = re.sub(r"\n?### AI提取事实（草稿，需用户原文支持）[\s\S]*$", "", block).strip()
+        if total_chars + len(cleaned) > max_chars:
+            break
+        selected.append(cleaned)
+        total_chars += len(cleaned)
+    return "\n\n".join(selected)
+
+
 def _format_sources(indexes: list[dict[str, Any]]) -> str:
     paths = _source_paths_from_indexes(indexes)
     if not paths:
@@ -339,18 +400,24 @@ def read_personal_evidence_context(
     memory_indexes = _load_memory_indexes(vault_dir)
     selected_indexes = _select_memory_indexes(memory_indexes, query, limit=daily_limit)
     source_paths = _source_paths_from_indexes(selected_indexes)
+    source_record_ids = _source_record_ids_from_indexes(selected_indexes, query=query)
     if not source_paths:
         return ""
 
     chunks = [
-        "说明：以下是根据 memory-index 的 source_pages 回读的 daily note 关键原文片段，用于判断候选阅读材料和真实处境的贴合度。"
+        "说明：以下是根据 memory-index 的 source_pages 和 source_record_ids 按需回读的原始证据，用于判断候选阅读材料和真实处境的贴合度。"
     ]
     total_chars = len(chunks[0])
-    for relative_path in source_paths[:daily_limit]:
+    # Schema v2 may expose both the daily note and its precise inbox page for
+    # each selected day. Keep both without reducing the number of days read.
+    for relative_path in source_paths[: daily_limit * 2]:
         path = vault_dir / relative_path
         if not path.exists() or path.suffix != ".md":
             continue
-        excerpt = _daily_evidence_excerpt(path)
+        if relative_path.startswith("00-inbox/"):
+            excerpt = _record_evidence_excerpt(path, source_record_ids)
+        else:
+            excerpt = _daily_evidence_excerpt(path)
         if not excerpt:
             continue
         chunk = f"## {relative_path}\n{excerpt}"

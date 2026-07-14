@@ -18,6 +18,13 @@ class Config:
     state_path: Path
     trace_log_enabled: bool
     trace_log_dir: Path
+    memory_research_enabled: bool
+    memory_embedding_api_key: str
+    memory_embedding_base_url: str
+    memory_embedding_model: str
+    memory_embedding_dimensions: int
+    memory_research_max_rounds: int
+    memory_research_cache_dir: Path
 
 
 def _read_env(path: Path) -> dict[str, str]:
@@ -41,27 +48,44 @@ def _env_bool(env: dict[str, str], key: str, default: bool) -> bool:
     return raw_value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _env_int(env: dict[str, str], key: str, default: int, minimum: int = 1) -> int:
+    try:
+        return max(minimum, int(env.get(key, str(default))))
+    except (TypeError, ValueError):
+        return default
+
+
 def load_config(base_dir: Path) -> Config:
     root_dir = base_dir.resolve().parent
     env = _read_env(root_dir / ".env")
+
+    llm_api_key = (
+        env.get("READING_LLM_API_KEY")
+        or env.get("LLM_API_KEY")
+        or env.get("DASHSCOPE_API_KEY")
+        or env.get("OPENAI_API_KEY", "")
+    )
+    llm_base_url = (
+        env.get("READING_LLM_BASE_URL")
+        or env.get("LLM_BASE_URL")
+        or env.get("DASHSCOPE_BASE_URL")
+        or "https://api.openai.com/v1"
+    )
+    llm_model = (
+        env.get("READING_LLM_MODEL")
+        or env.get("LLM_MODEL")
+        or env.get("WISDOM_ADVISOR_MODEL")
+        or env.get("OPENAI_MODEL", "qwen-plus")
+    )
 
     return Config(
         app_id=env.get("READING_FEISHU_APP_ID", ""),
         app_secret=env.get("READING_FEISHU_APP_SECRET", ""),
         verification_token=env.get("READING_FEISHU_VERIFICATION_TOKEN", ""),
         encrypt_key=env.get("READING_FEISHU_ENCRYPT_KEY", ""),
-        llm_api_key=env.get("READING_LLM_API_KEY")
-        or env.get("LLM_API_KEY")
-        or env.get("DASHSCOPE_API_KEY")
-        or env.get("OPENAI_API_KEY", ""),
-        llm_base_url=env.get("READING_LLM_BASE_URL")
-        or env.get("LLM_BASE_URL")
-        or env.get("DASHSCOPE_BASE_URL")
-        or "https://api.openai.com/v1",
-        llm_model=env.get("READING_LLM_MODEL")
-        or env.get("LLM_MODEL")
-        or env.get("WISDOM_ADVISOR_MODEL")
-        or env.get("OPENAI_MODEL", "qwen-plus"),
+        llm_api_key=llm_api_key,
+        llm_base_url=llm_base_url,
+        llm_model=llm_model,
         weread_api_key=env.get("WEREAD_API_KEY", ""),
         personal_kb_dir=Path(
             env.get("READING_PERSONAL_KB_DIR")
@@ -72,6 +96,19 @@ def load_config(base_dir: Path) -> Config:
         state_path=base_dir / "state.json",
         trace_log_enabled=_env_bool(env, "READING_TRACE_LOG_ENABLED", True),
         trace_log_dir=Path(env.get("READING_TRACE_LOG_DIR") or base_dir / "logs" / "traces").expanduser(),
+        memory_research_enabled=_env_bool(env, "MEMORY_RESEARCH_ENABLED", True),
+        memory_embedding_api_key=env.get("MEMORY_EMBEDDING_API_KEY")
+        or env.get("DASHSCOPE_API_KEY")
+        or llm_api_key,
+        memory_embedding_base_url=env.get("MEMORY_EMBEDDING_BASE_URL")
+        or env.get("DASHSCOPE_BASE_URL")
+        or llm_base_url,
+        memory_embedding_model=env.get("MEMORY_EMBEDDING_MODEL", "text-embedding-v4"),
+        memory_embedding_dimensions=_env_int(env, "MEMORY_EMBEDDING_DIMENSIONS", 1024),
+        memory_research_max_rounds=_env_int(env, "MEMORY_RESEARCH_MAX_ROUNDS", 2),
+        memory_research_cache_dir=Path(
+            env.get("MEMORY_RESEARCH_CACHE_DIR") or base_dir / "data" / "memory-researcher"
+        ).expanduser(),
     )
 
 

@@ -169,7 +169,7 @@ h1 {
 .stage {
   padding: 20px;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 [hidden] {
@@ -270,10 +270,9 @@ h1 {
 }
 
 .overview-page {
-  height: calc(100vh - 268px);
-  min-height: 500px;
+  min-height: 0;
   margin-top: 14px;
-  overflow: auto;
+  overflow: visible;
 }
 
 .overview-grid {
@@ -418,8 +417,8 @@ h1 {
   display: grid;
   grid-template-columns: minmax(340px, 0.82fr) minmax(480px, 1.18fr);
   gap: 14px;
-  height: calc(100vh - 202px);
-  min-height: 520px;
+  align-items: start;
+  min-height: 0;
 }
 
 body[data-view="architecture"] .workspace {
@@ -467,6 +466,13 @@ body[data-view="architecture"] .raw-details pre {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: rgba(16, 20, 27, 0.86);
+  overflow: visible;
+}
+
+.runs-panel {
+  position: sticky;
+  top: 16px;
+  max-height: calc(100vh - 32px);
   overflow: hidden;
 }
 
@@ -495,7 +501,7 @@ body[data-view="architecture"] .raw-details pre {
 }
 
 .run-list {
-  height: calc(100% - 70px);
+  max-height: calc(100vh - 114px);
   margin: 0;
   padding: 10px;
   overflow: auto;
@@ -641,7 +647,8 @@ body[data-view="architecture"] .raw-details pre {
   min-height: 0;
   padding: 12px 14px;
   border-bottom: 1px solid var(--line);
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: visible;
 }
 
 .flow-view.architecture-view {
@@ -653,8 +660,8 @@ body[data-view="architecture"] .raw-details pre {
 }
 
 .architecture-blueprint {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 14px;
   min-width: 0;
 }
@@ -689,22 +696,96 @@ body[data-view="architecture"] .raw-details pre {
   line-height: 1.45;
 }
 
-.architecture-module-grid {
+.architecture-boundary {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
+  border-bottom: 1px solid rgba(58, 70, 84, 0.56);
   padding: 12px;
 }
 
+.architecture-boundary section {
+  min-width: 0;
+  border: 1px solid rgba(58, 70, 84, 0.62);
+  border-radius: var(--radius);
+  background: rgba(9, 12, 18, 0.5);
+  padding: 10px;
+}
+
+.architecture-boundary div {
+  margin-bottom: 8px;
+  color: var(--cyan);
+  font-size: 10px;
+  line-height: 1.2;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.architecture-boundary span,
+.arch-contract-values span {
+  display: inline-flex;
+  max-width: 100%;
+  margin: 0 6px 6px 0;
+  border: 1px solid rgba(58, 70, 84, 0.72);
+  border-radius: 999px;
+  color: #c5cfdc;
+  background: rgba(17, 23, 32, 0.82);
+  padding: 4px 8px;
+  font-size: 11px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.architecture-boundary .arch-empty,
+.arch-contract-values .arch-empty {
+  color: var(--faint);
+}
+
+.architecture-pipeline {
+  display: flex;
+  align-items: stretch;
+  gap: 18px;
+  padding: 16px;
+  overflow-x: auto;
+}
+
 .architecture-module {
-  min-height: 164px;
+  position: relative;
+  flex: 0 0 260px;
+  min-height: 250px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   color: var(--text);
   background: linear-gradient(180deg, rgba(18, 24, 33, 0.96), rgba(12, 17, 24, 0.96));
-  padding: 11px;
+  padding: 13px;
   text-align: left;
   cursor: pointer;
+}
+
+.architecture-module::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: -19px;
+  width: 18px;
+  border-top: 1px solid rgba(121, 230, 243, 0.34);
+}
+
+.architecture-module::before {
+  content: "";
+  position: absolute;
+  top: calc(50% - 4px);
+  right: -20px;
+  width: 8px;
+  height: 8px;
+  border-top: 1px solid rgba(121, 230, 243, 0.48);
+  border-right: 1px solid rgba(121, 230, 243, 0.48);
+  transform: rotate(45deg);
+}
+
+.architecture-module:last-child::after,
+.architecture-module:last-child::before {
+  display: none;
 }
 
 .architecture-module:hover {
@@ -731,6 +812,19 @@ body[data-view="architecture"] .raw-details pre {
   background: linear-gradient(180deg, rgba(34, 28, 17, 0.96), rgba(22, 18, 13, 0.96));
 }
 
+.module-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.module-index {
+  color: var(--faint);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
 .module-kind {
   display: inline-flex;
   border: 1px solid rgba(121, 230, 243, 0.28);
@@ -744,8 +838,8 @@ body[data-view="architecture"] .raw-details pre {
 }
 
 .module-title {
-  margin-top: 9px;
-  font-size: 14px;
+  margin-top: 14px;
+  font-size: 16px;
   font-weight: 700;
   line-height: 1.25;
 }
@@ -762,27 +856,32 @@ body[data-view="architecture"] .raw-details pre {
   -webkit-line-clamp: 3;
 }
 
-.module-metrics {
+.module-contract {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 7px;
-  margin-top: 12px;
+  gap: 9px;
+  margin-top: 13px;
 }
 
-.module-metrics span {
-  border: 1px solid rgba(58, 70, 84, 0.62);
-  border-radius: 6px;
+.arch-contract-block {
+  border-top: 1px solid rgba(58, 70, 84, 0.46);
+  padding-top: 9px;
+}
+
+.arch-contract-label {
+  margin-bottom: 7px;
   color: var(--muted);
-  background: rgba(9, 12, 18, 0.58);
-  padding: 6px;
-  font-size: 11px;
-  line-height: 1.1;
+  font-size: 10px;
+  line-height: 1.2;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-.module-metrics strong {
-  margin-right: 5px;
-  color: var(--text);
-  font-size: 13px;
+.module-depends {
+  margin-top: 10px;
+  color: var(--faint);
+  font-size: 11px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .flow-track {
@@ -886,7 +985,7 @@ body[data-view="architecture"] .raw-details pre {
   height: auto;
   min-height: 0;
   padding: 14px 16px 18px;
-  overflow: auto;
+  overflow: visible;
 }
 
 .detail-panel.flow-collapsed .flow-view {
@@ -1013,8 +1112,7 @@ body[data-view="architecture"] .raw-details pre {
 .event-list {
   display: flex;
   flex-direction: column;
-  max-height: 260px;
-  overflow: auto;
+  overflow: visible;
 }
 
 .event-list-row {
@@ -1112,8 +1210,8 @@ body[data-view="architecture"] .raw-details pre {
 }
 
 .io-card pre {
-  max-height: min(560px, 52vh);
-  overflow: auto;
+  max-height: none;
+  overflow: visible;
 }
 
 .value-sections {
@@ -1141,7 +1239,6 @@ body[data-view="architecture"] .raw-details pre {
 }
 
 .value-section pre {
-  max-height: min(620px, 58vh);
   margin-top: 9px;
   padding-top: 9px;
   border-top: 1px solid rgba(58, 70, 84, 0.48);
@@ -1227,8 +1324,8 @@ body[data-view="architecture"] .raw-details pre {
 
 .raw-details pre {
   margin-top: 10px;
-  max-height: min(620px, 58vh);
-  overflow: auto;
+  max-height: none;
+  overflow: visible;
 }
 
 .alert-item {
@@ -1239,17 +1336,15 @@ body[data-view="architecture"] .raw-details pre {
 }
 
 .alerts-page {
-  height: calc(100vh - 172px);
-  min-height: 520px;
-  overflow: hidden;
+  min-height: 0;
+  overflow: visible;
 }
 
 .alerts-panel {
-  height: 100%;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: rgba(16, 20, 27, 0.86);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .page-heading {
@@ -1259,9 +1354,8 @@ body[data-view="architecture"] .raw-details pre {
 .alerts-list {
   display: grid;
   gap: 10px;
-  height: calc(100% - 70px);
   padding: 12px;
-  overflow: auto;
+  overflow: visible;
 }
 
 .alert-item.expanded {

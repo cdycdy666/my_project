@@ -50,6 +50,15 @@ python3 -m venv .venv
 00-inbox/feishu/YYYY-MM-DD.md
 ```
 
+即时反馈支持轻量“记录会话”：
+
+- 对任务完成、判断、问题发现等记录，模型会判断是否缺少结果反馈、验证方式、判断依据或下一步。
+- 如果需要补充，机器人会追问一个关键问题，并在 `state.json` 中保留当前 active session。
+- 用户下一条回复如果是在回答追问，会作为同一记录会话的“用户补充”写入 inbox。
+- 发送「完成」「先这样」可结束当前记录会话；发送「新记录：...」可强制开启新事件。
+- 晚间整理时，AI 追问只作为上下文，不会被当作用户事实写入 daily note。
+- 每条用户原文会带稳定的 `record_id`；同一轮追问与补充共享 `session_id`。
+
 每天 `DAILY_SUMMARY_TIME` 会调用模型整理当天全部历史记录，并写入：
 
 ```text
@@ -64,6 +73,20 @@ python3 -m venv .venv
 - 零散记录
 - 给 AI 的长期上下文
 - 原始记录
+
+## GAM-lite 记忆链
+
+晚间整理采用“轻量记忆 + 完整原文 + 按需回读”的方式：
+
+```text
+飞书原文（record_id/session_id）
+  -> daily note 事件（隐藏 sources 引用）
+  -> 90-context/memory-index/YYYY-MM-DD.json
+  -> 其他 Agent 先查索引，再按 source_pages/source_record_ids 回读原文
+```
+
+`memory-index` 会在 daily note 写入后自动生成，并在同一次 Git commit/push 中备份。索引失败不会覆盖或删除已写入的 daily note，日志会保留失败原因。
+事件来源使用 Obsidian HTML 注释保存；飞书“整理完成”消息会隐藏这些机器元数据，只展示可读正文。
 
 手动补跑指定日期：
 

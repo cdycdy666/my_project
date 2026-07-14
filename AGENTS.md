@@ -76,11 +76,13 @@ feishu-obsidian-capture/
 - 即时给一点 LLM 反馈。
 - 晚上定时拉取/整理当天飞书记录。
 - 写入 `personal-kb/10-daily/YYYY/YYYY-MM-DD.md`。
+- 为原始记录写入 `record_id/session_id`，并在晚间整理后自动生成当天 `90-context/memory-index/*.json`。
 
 当前设计：
 
 - 常驻监听：接收飞书消息、保存原始记录、即时反馈。
 - 定时任务：早晨提醒、晚间整理、必要时补跑前一天。
+- 记忆链：完整原文保存在 inbox/daily note，轻量索引保存事件与 `source_pages/source_record_ids`，供其他 Agent 按需回读。
 - 服务端是主要运行环境，本地主要用于开发和备份。
 
 重要边界：
@@ -179,7 +181,10 @@ feishu-reading-agent/
 
 ```text
 用户消息
-  -> 读取 PersonalContextBundle
+  -> Personal Memory Researcher 规划历史检索 query
+  -> BM25 + Embedding 检索 memory-index
+  -> RRF 融合后按 Page-ID/record-ID 回读原文
+  -> 必要时补查一轮，形成处境摘要和证据
   -> 默认不读取微信读书书架
   -> LLM 生成 material_queries
   -> 微信读书验证
@@ -201,6 +206,8 @@ feishu-reading-agent/
 - 最终回复必须服从候选材料打分结果；默认只输出 1 个方案。
 - 默认不读取微信读书书架，除非用户明确要求从书架里推荐或检查书架。
 - 它只读 `personal-kb`，不写 daily note。
+- 读取 schema v2 memory-index 时，会先用轻量事件摘要定位，再按 `source_record_ids` 精确回读对应飞书原文；旧索引仍按整页回读兼容。
+- 个人记忆检索由 `personal-memory-researcher` 提供；向量接口失败时降级为 BM25 + Page-ID，不应阻断机器人回复。
 
 常用命令：
 
@@ -222,6 +229,28 @@ ssh root@123.57.229.149 "tail -n 80 /opt/feishu-reading-agent/logs/traces/$(date
 - 不修改 `feishu-obsidian-capture`。
 - 不写入 `personal-kb`。
 - 不把 `WEREAD_API_KEY`、飞书 secret、模型 key、`state.json`、`.env` 提交到 Git。
+
+### 4a. Personal Memory Researcher
+
+目录：
+
+```text
+personal-memory-researcher/
+```
+
+用途：
+
+- 只读检索 `personal-kb/90-context/memory-index/`。
+- 同时使用本地 BM25、Embedding 语义检索和 Page-ID/record-ID 原文回读。
+- 对检索证据做最多两轮的规划与充分性反思，输出可追溯的记忆摘要和原文证据。
+- 当前由 `feishu-reading-agent` 调用，后续其他 Agent 可以复用，不直接生成业务回复。
+
+重要边界：
+
+- 不写 `personal-kb`；Embedding 缓存保存在调用方的 `data/` 目录。
+- Embedding 只发送 memory-index 轻量事件文本，不直接向量化整篇 daily note/inbox；Page-ID 原文回读在本地完成。
+- Embedding 失败必须保留 BM25 + Page-ID 降级链路。
+- trace 应保留 query、BM25/Embedding 命中、融合排序和回读证据，但不能记录 API Key。
 
 ### 5. 飞书播客 / 论文学习陪练
 
@@ -300,7 +329,12 @@ ssh -L 8769:127.0.0.1:8769 root@123.57.229.149
 ```text
 personal-kb
   -> 被 feishu-obsidian-capture 写入
-  -> 被 feishu-reading-agent 读取
+  -> 被 personal-memory-researcher 只读检索
+
+personal-memory-researcher
+  -> BM25 + Embedding 检索 memory-index
+  -> Page-ID/record-ID 回读 personal-kb 原文
+  -> 被 feishu-reading-agent 调用
 
 feishu-obsidian-capture
   -> 飞书记录机器人

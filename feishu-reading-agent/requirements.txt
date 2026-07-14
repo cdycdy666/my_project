@@ -1,1 +1,2 @@
 lark-oapi>=1.4.0
+-e ../personal-memory-researcher

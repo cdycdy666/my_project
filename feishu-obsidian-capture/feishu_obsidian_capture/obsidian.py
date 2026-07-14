@@ -93,7 +93,23 @@ def ensure_daily_note(vault_dir: Path, date_text: str) -> Path:
     return path
 
 
-def append_feishu_inbox_message(vault_dir: Path, text: str, date_text: str | None = None) -> Path:
+def _clean_heading(value: str) -> str:
+    return re.sub(r"[\r\n#]+", " ", value).strip() or "未命名记录"
+
+
+def append_feishu_inbox_message(
+    vault_dir: Path,
+    text: str,
+    date_text: str | None = None,
+    *,
+    session_title: str = "",
+    record_role: str = "用户记录",
+    record_type: str = "",
+    ai_follow_up: str = "",
+    ai_summary_fact: str = "",
+    record_id: str = "",
+    session_id: str = "",
+) -> Path:
     date_text = date_text or shanghai_today()
     path = feishu_inbox_path(vault_dir, date_text)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -104,9 +120,31 @@ def append_feishu_inbox_message(vault_dir: Path, text: str, date_text: str | Non
     else:
         content = f"# {date_text} 飞书原始记录\n"
 
-    content = content.rstrip() + f"\n\n## {now}\n{text.strip()}\n"
+    if session_title:
+        title = _clean_heading(session_title)
+        role = _clean_heading(record_role)
+        type_suffix = f"（{_clean_heading(record_type)}）" if record_type else ""
+        block = [f"## {now} 记录会话：{title}"]
+        if record_id:
+            block.append(f"<!-- record_id: {_clean_metadata_id(record_id)} -->")
+        if session_id:
+            block.append(f"<!-- session_id: {_clean_metadata_id(session_id)} -->")
+        block.extend([f"### {role}{type_suffix}", text.strip()])
+        if ai_follow_up:
+            block.extend(["", "### AI追问（上下文，不作为事实）", ai_follow_up.strip()])
+        if ai_summary_fact:
+            block.extend(["", "### AI提取事实（草稿，需用户原文支持）", ai_summary_fact.strip()])
+        content = content.rstrip() + "\n\n" + "\n".join(block) + "\n"
+    else:
+        metadata = f"\n<!-- record_id: {_clean_metadata_id(record_id)} -->" if record_id else ""
+        content = content.rstrip() + f"\n\n## {now}{metadata}\n{text.strip()}\n"
+
     path.write_text(content + "\n", encoding="utf-8")
     return path
+
+
+def _clean_metadata_id(value: str) -> str:
+    return re.sub(r"[^A-Za-z0-9_.:-]+", "-", value).strip("-")[:160]
 
 
 def read_feishu_inbox(vault_dir: Path, date_text: str | None = None) -> str:

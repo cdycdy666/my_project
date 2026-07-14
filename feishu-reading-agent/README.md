@@ -21,15 +21,16 @@
 
 ## 个人处境读取方式
 
-读书智能体采用一个轻量 GAM-lite 流程：
+读书智能体采用一个带 Researcher 的 GAM-lite 流程。个人处境不是按固定最近几天截取，而是先研究用户这次真正问的是什么，再定位相关历史：
 
 ```text
 用户消息
-  -> 读取 personal-kb/90-context/memory-index/*.json 轻量索引
-  -> 按用户消息选择相关日期
-  -> 读取 personal-kb/90-context/CURRENT_CONTEXT.md、PROFILE.md 等长期背景短摘
-  -> 生成结构化 PersonalContextBundle
-  -> 默认只附 source_pages，不回读 daily note 原文
+  -> LLM 根据 memory-index 概览规划最多 3 条历史检索 query
+  -> BM25 关键词检索 + text-embedding-v4 语义检索
+  -> RRF 融合两路候选
+  -> 按 Page-ID/source_pages 和 record-ID/source_record_ids 回读原文
+  -> LLM 判断证据是否充分，必要时补查一轮
+  -> 生成 PersonalMemoryResearchBundle + PersonalMemoryEvidence
   -> 默认不读取微信读书书架
   -> 让模型生成微信读书检索 query
   -> 做微信读书搜索、目录和片段证据验证
@@ -45,7 +46,9 @@
 python3 /Users/chendingyu/my_project/personal-kb/scripts/build_memory_index.py
 ```
 
-这个索引只是帮助定位历史，不替代 daily note 原文。读书智能体默认使用摘要和来源引用，避免把整篇 daily note 原文塞进模型上下文；进入材料打分阶段时，会按 `source_pages` 回读 1-2 篇 daily note 的关键段落，如判断、依据、沉淀、open loop，用于判断候选材料和真实处境的贴合度。
+这个索引只是帮助定位历史，不替代原文。BM25 擅长项目名、人名和明确术语，Embedding 补充语义相近但措辞不同的记录，Page-ID/record-ID 负责把候选落回真实来源。schema v2 索引会按 `source_record_ids` 精确回读对应飞书原文，旧版索引仍按整页回读兼容。Embedding 接口不可用时会自动降级为 BM25 + Page-ID，不阻断读书机器人回复。
+
+Embedding 只处理 `memory-index` 中的轻量事件文本，不直接把整篇 daily note 或 inbox 原文做向量化。Page-ID/record-ID 回读在本地完成；回读结果会像原有个人处境上下文一样进入后续阅读建议 LLM。向量缓存属于派生运行数据，已从 Git 排除。
 
 默认的“推荐阅读”不会读取微信读书书架，避免书架噪音牵引推荐方向。只有用户明确说“书架”“从我书架里推荐”“已有的书里有没有适合的”时，才会读取书架。
 
@@ -74,9 +77,16 @@ READING_LLM_MODEL=qwen-plus
 
 READING_TRACE_LOG_ENABLED=true
 READING_TRACE_LOG_DIR=/Users/chendingyu/my_project/feishu-reading-agent/logs/traces
+
+MEMORY_RESEARCH_ENABLED=true
+MEMORY_EMBEDDING_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+MEMORY_EMBEDDING_MODEL=text-embedding-v4
+MEMORY_EMBEDDING_DIMENSIONS=1024
+MEMORY_RESEARCH_MAX_ROUNDS=2
+MEMORY_RESEARCH_CACHE_DIR=/Users/chendingyu/my_project/feishu-reading-agent/data/memory-researcher
 ```
 
-如果不配置 `READING_LLM_*`，会复用根 `.env` 里的 `LLM_*`。
+如果不配置 `READING_LLM_*`，会复用根 `.env` 里的 `LLM_*`。Memory Researcher 默认复用同一个 DashScope API Key；只有需要单独计费或切换供应商时，才配置 `MEMORY_EMBEDDING_API_KEY`。向量缓存只写入 `data/memory-researcher/`，不写回 `personal-kb`。
 
 `READING_TRACE_LOG_ENABLED` 默认开启。追踪日志不会记录 API Key，会记录每次回复的 `trace_id`、用户消息、完整 LLM messages/payload、模型回复、微信读书请求参数、微信读书完整响应、检索结果、证据上下文和最终回复，方便后续在 Agent Monitor 里复盘每个模块的输入输出。
 
@@ -86,6 +96,13 @@ READING_TRACE_LOG_DIR=/Users/chendingyu/my_project/feishu-reading-agent/logs/tra
 cd /Users/chendingyu/my_project/feishu-reading-agent
 python3 -m venv .venv
 ./.venv/bin/pip install -r requirements.txt
+```
+
+`requirements.txt` 会从同级目录安装 `../personal-memory-researcher`。服务器部署时需要同时存在：
+
+```text
+/opt/feishu-reading-agent
+/opt/personal-memory-researcher
 ```
 
 ## 手动检查微信读书
@@ -185,6 +202,11 @@ tail -n 80 /opt/feishu-reading-agent/logs/traces/$(date +%F).jsonl
 - `reply_start`：收到的用户消息
 - `llm_request` / `llm_response`：模型调用类型、模型名、完整 messages/payload、输入长度、耗时、模型回复和 usage
 - `material_queries`：模型生成的微信读书检索词
+- `memory_query_plan`：Researcher 为个人历史生成的检索 query
+- `memory_bm25_search` / `memory_vector_search`：关键词与语义检索输入输出
+- `memory_hybrid_fusion`：两路候选的融合排序
+- `memory_page_id_retrieval`：按 Page-ID/record-ID 回读的真实原文
+- `memory_research_reflection`：证据充分性与补查决定
 - `weread_request` / `weread_response`：微信读书接口、参数摘要、返回摘要、耗时
 - `material_search_results`：每个 query 命中的书
 - `verified_materials_context`：最终给模型的证据上下文预览

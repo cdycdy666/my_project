@@ -3,6 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+try:
+    from personal_memory_researcher import MemoryResearcher, ResearcherConfig
+except ImportError:  # Keep the bot usable while the optional local package is not installed.
+    MemoryResearcher = None  # type: ignore[assignment]
+    ResearcherConfig = None  # type: ignore[assignment]
+
 from .config import Config
 from .personal_context import read_personal_context, read_personal_evidence_context
 from .trace import InteractionTrace
@@ -17,6 +23,7 @@ class ToolContext:
     config: Config
     trace: InteractionTrace | None = None
     progress_callback: ToolProgressCallback | None = None
+    memory_cache: dict[str, Any] = field(default_factory=dict)
 
     def progress(self, text: str) -> None:
         if not self.progress_callback:
@@ -106,6 +113,17 @@ class ReadPersonalContextTool(BaseTool):
 
     def run(self, context: ToolContext, **kwargs: Any) -> ToolResult:
         message = str(kwargs.get("message") or "")
+        research = _research_personal_memory(context, message)
+        if research is not None:
+            content = research.summary_context()
+            return ToolResult(
+                tool_name=self.name,
+                ok=True,
+                content=content or "暂无个人处境上下文。",
+                evidence_level="hybrid_memory_research_summary",
+                verified=bool(research.hits),
+                metadata=_research_metadata(research, len(content)),
+            )
         content = read_personal_context(context.config.personal_kb_dir, query=message)
         return ToolResult(
             tool_name=self.name,
@@ -123,6 +141,17 @@ class ReadPersonalEvidenceTool(BaseTool):
 
     def run(self, context: ToolContext, **kwargs: Any) -> ToolResult:
         message = str(kwargs.get("message") or "")
+        research = _research_personal_memory(context, message)
+        if research is not None:
+            content = research.evidence_context()
+            return ToolResult(
+                tool_name=self.name,
+                ok=bool(research.evidence),
+                content=content or "暂无 personal-kb 原文片段。",
+                evidence_level="page_id_and_record_id_source_evidence",
+                verified=bool(research.evidence),
+                metadata=_research_metadata(research, len(content)),
+            )
         content = read_personal_evidence_context(context.config.personal_kb_dir, query=message)
         return ToolResult(
             tool_name=self.name,
@@ -132,6 +161,57 @@ class ReadPersonalEvidenceTool(BaseTool):
             verified=True,
             metadata={"chars": len(content or "")},
         )
+
+
+def _research_metadata(research: Any, chars: int) -> dict[str, Any]:
+    return {
+        "chars": chars,
+        "methods": ["bm25", "embedding", "page_id"],
+        "planned_queries": list(research.planned_queries),
+        "rounds": research.rounds,
+        "hit_count": len(research.hits),
+        "evidence_count": len(research.evidence),
+        "sufficient": research.sufficient,
+        "warnings": list(research.warnings),
+    }
+
+
+def _research_personal_memory(context: ToolContext, message: str) -> Any | None:
+    if not context.config.memory_research_enabled or MemoryResearcher is None or ResearcherConfig is None:
+        return None
+
+    cache_key = message.strip() or "__empty__"
+    if cache_key in context.memory_cache:
+        return context.memory_cache[cache_key]
+
+    try:
+        researcher = MemoryResearcher(
+            ResearcherConfig(
+                vault_dir=context.config.personal_kb_dir,
+                embedding_api_key=context.config.memory_embedding_api_key,
+                embedding_base_url=context.config.memory_embedding_base_url,
+                embedding_model=context.config.memory_embedding_model,
+                embedding_dimensions=context.config.memory_embedding_dimensions,
+                embedding_cache_path=context.config.memory_research_cache_dir / "embeddings.json",
+                llm_api_key=context.config.llm_api_key,
+                llm_base_url=context.config.llm_base_url,
+                llm_model=context.config.llm_model,
+                max_rounds=context.config.memory_research_max_rounds,
+            )
+        )
+        result = researcher.research(message, trace=context.trace)
+        context.memory_cache[cache_key] = result
+        return result
+    except Exception as exc:
+        if context.trace:
+            context.trace.event(
+                "memory_research_fallback",
+                query=message,
+                error=str(exc),
+                fallback="legacy_personal_context_reader",
+            )
+        context.memory_cache[cache_key] = None
+        return None
 
 
 class FetchWereadShelfTool(BaseTool):

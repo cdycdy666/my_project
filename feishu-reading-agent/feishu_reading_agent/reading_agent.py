@@ -6,11 +6,11 @@ from .config import Config
 from .llm import (
     check_final_reply_materials,
     generate_evidence_aware_material_scoring,
+    generate_general_reply,
     generate_material_queries,
     generate_reading_reply,
     plan_next_reading_action,
 )
-from .personal_context import read_personal_context
 from .tools import ToolContext, ToolRegistry, create_default_tool_registry
 from .trace import InteractionTrace
 from .weread import fetch_shelf_context
@@ -64,10 +64,6 @@ class ReadingAgent:
             progress_callback=progress_callback,
         )
 
-    def _personal_context(self, message: str = "") -> str:
-        context = read_personal_context(self.config.personal_kb_dir, query=message)
-        return context or "暂无个人处境上下文。"
-
     def _weread_context(self, trace: InteractionTrace | None = None) -> str:
         if not self.config.weread_api_key:
             return "未配置 WEREAD_API_KEY，无法读取微信读书书架。"
@@ -86,6 +82,36 @@ class ReadingAgent:
     def _needs_material_verification(self, message: str) -> bool:
         keywords = ("推荐", "读什么", "换一本", "适合", "章节", "哪一章", "哪部分", "哪一节")
         return any(keyword in message for keyword in keywords)
+
+    def _needs_reading_reflection(self, message: str) -> bool:
+        keywords = ("读完了", "读完：", "读完:", "读后", "读后感", "阅读复盘", "读书复盘", "看完《", "看完了《")
+        return any(keyword in message for keyword in keywords)
+
+    def _run_reading_reflection(
+        self,
+        message: str,
+        trace: InteractionTrace,
+        progress_callback: ProgressCallback | None = None,
+    ) -> str:
+        self._progress(progress_callback, trace, "personal_context", "正在读取你的个人处境上下文...")
+        personal_result = self.tool_registry.call(
+            "personal.read_context",
+            self._tool_context(trace, progress_callback),
+            message=message,
+        )
+        personal_context = personal_result.content if personal_result.ok else "暂无个人处境上下文。"
+        trace.event("personal_context_loaded", chars=len(personal_context), flow="reading_reflection")
+
+        self._progress(progress_callback, trace, "reading_reflection", "正在整理这次读后反馈...")
+        return generate_reading_reply(
+            self.config.llm_api_key,
+            self.config.llm_base_url,
+            self.config.llm_model,
+            message,
+            personal_context,
+            NO_SHELF_CONTEXT,
+            trace=trace,
+        )
 
     def _evidence_aware_material_scoring_context(
         self,
@@ -523,27 +549,19 @@ class ReadingAgent:
                 trace.event("reply_complete", elapsed_ms=trace.elapsed_ms(), chars=len(reply), flow="restricted_loop")
                 return reply
 
-            self._progress(progress_callback, trace, "personal_context", "正在读取你的个人处境上下文...")
-            personal_context = self._personal_context(message)
-            trace.event("personal_context_loaded", chars=len(personal_context))
-            if self._needs_shelf_context(message):
-                self._progress(progress_callback, trace, "weread_shelf", "正在读取微信读书书架...")
-                weread_context = self._weread_context(trace=trace)
-            else:
-                weread_context = NO_SHELF_CONTEXT
-                trace.event("weread_shelf_skipped", reason="message_does_not_request_shelf")
-            trace.event("weread_context_loaded", chars=len(weread_context))
-            self._progress(progress_callback, trace, "reading_reply", "正在生成这次阅读建议...")
-            reply = generate_reading_reply(
+            if self._needs_reading_reflection(message):
+                reply = self._run_reading_reflection(message, trace, progress_callback=progress_callback)
+                trace.event("reply_complete", elapsed_ms=trace.elapsed_ms(), chars=len(reply), flow="reading_reflection")
+                return reply
+
+            reply = generate_general_reply(
                 self.config.llm_api_key,
                 self.config.llm_base_url,
                 self.config.llm_model,
                 message,
-                personal_context,
-                weread_context,
                 trace=trace,
             )
-            trace.event("reply_complete", elapsed_ms=trace.elapsed_ms(), chars=len(reply))
+            trace.event("reply_complete", elapsed_ms=trace.elapsed_ms(), chars=len(reply), flow="general")
             return reply
         except Exception as exc:
             trace.event("reply_error", elapsed_ms=trace.elapsed_ms(), error=str(exc))
